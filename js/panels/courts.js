@@ -3,12 +3,17 @@ import * as store from "../store.js";
 import { courtStatusInfo, hourLabel, rupiah, esc } from "../ui.js";
 import { go } from "../router-shim.js";
 
+const COURTS_IMG = "/manus-storage/async-images/X1HgPzKojHyA0TKIrwkKVP/image-2.webp";
+
 export function render(root) {
   const st = store.state;
   if (!st.ready) { root.innerHTML = `<div class="skeleton-group"><div class="sk-line" style="width:75%"></div><div class="sk-line"></div></div>`; return; }
   root.innerHTML = `
+    <figure class="court-banner">
+      <img src="${COURTS_IMG}" alt="Gor SRISP dari atas" decoding="async">
+      <figcaption><b>Gor SRISP</b> — ${st.courts.length} lapangan bersertifikat. Rincian tarif, fasilitas dan jam operasional di bawah; status diperbarui otomatis sesuai pesanan.</figcaption>
+    </figure>
     <h2 class="sec top">Daftar Lapangan</h2>
-    <p class="muted lead">Rincian tarif, fasilitas dan jam operasional. Status diperbarui otomatis sesuai pesanan hari ini.</p>
     <div class="court-cards">
       ${st.courts.map((c) => {
         const s = store.courtStatus(c);

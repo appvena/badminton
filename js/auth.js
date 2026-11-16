@@ -1,7 +1,6 @@
-// auth.js — gerbang login Firebase (Email/Password + tamu anonim)
+// auth.js — modal Masuk/Daftar & zona login pojok kanan atas
 import * as fb from "./firebase.js";
-import { APP } from "./config.js";
-import { grantAdmin } from "./store.js";
+import { state, setUser, isStaff } from "./store.js";
 import { $, toast } from "./ui.js";
 
 const ERR = {
@@ -11,65 +10,118 @@ const ERR = {
   "auth/email-already-in-use": "Email sudah terdaftar — silakan Masuk.",
   "auth/weak-password": "Kata sandi minimal 6 karakter.",
   "auth/invalid-email": "Format email tidak valid.",
-  "auth/operation-not-allowed": "Metode login belum diaktifkan di Firebase Console (Authentication → Sign-in method → Email/Password & Anonymous).",
-  "auth/network-request-failed": "Jaringan tidak mencapai Firebase. Periksa koneksi internet.",
-  "auth/too-many-requests": "Terlalu banyak percobaan. Tunggu sebentar lalu coba lagi.",
+  "auth/operation-not-allowed": "Aktifkan metode Email/Password di Firebase Console → Authentication.",
+  "auth/network-request-failed": "Jaringan tidak mencapai Firebase.",
+  "auth/too-many-requests": "Terlalu banyak percobaan. Tunggu sebentar.",
 };
 
-export const showGate = () => { $("#authGate").hidden = false; document.body.classList.add("locked"); };
-export const hideGate = () => { $("#authGate").hidden = true; document.body.classList.remove("locked"); };
-
 let tab = "in";
+const modal = () => $("#authModal");
+
+export function openAuth(t = "in") {
+  setTab(t);
+  modal().hidden = false;
+  modal().querySelector('[name="email"]').focus?.();
+}
+export function closeAuth() { modal().hidden = true; }
+
+function setTab(t) {
+  tab = t;
+  modal().querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("on", x.dataset.tab === t));
+  modal().querySelector('label[for="aname"]').hidden = t !== "up";
+  modal().querySelector('button[type="submit"]').textContent = t === "in" ? "Masuk" : "Daftar & Masuk";
+}
+
+function initials() {
+  const s = (state.user.name || state.user.email || "?").trim();
+  return s.slice(0, 2).toUpperCase();
+}
+
+function signedInReal() {
+  if (state.mode === "demo") return !!state.user.email;
+  return state.mode === "firebase" && state.user.email && !state.user.guest;
+}
+
+export function renderAuthZone() {
+  const zone = $("#authZone");
+  if (!zone) return;
+  if (signedInReal()) {
+    const label = state.user.name || state.user.email;
+    zone.innerHTML = `<div class="user-chip">
+        <span class="uav" data-act="menu">${initials()}</span>
+        <span data-act="menu">${label}</span><span class="ucaret" data-act="menu">▾</span>
+        <div class="uchip-menu">
+          <a href="#history">Profil &amp; Riwayat</a>
+          ${isStaff() ? '<a href="#admin">Ruang Pengelola</a>' : ""}
+          <div class="sep"></div>
+          <button data-act="logout">Keluar</button>
+        </div>
+      </div>`;
+  } else {
+    zone.innerHTML = `
+      <button class="authbtn login" data-act="login">Masuk</button>
+      <button class="authbtn register" data-act="register">Daftar</button>`;
+  }
+  // cermin di menu mobile
+  const mm = document.querySelector(".mm-auth");
+  if (mm) mm.innerHTML = zone.innerHTML;
+}
 
 export function initAuthUI() {
-  const gate = $("#authGate");
-  const tabs = gate.querySelectorAll("[data-tab]");
-  const nameField = gate.querySelector('label[for="aname"]');
-  const submit = gate.querySelector('button[type="submit"]');
+  renderAuthZone();
 
-  tabs.forEach((b) => (b.onclick = () => {
-    tab = b.dataset.tab;
-    tabs.forEach((x) => x.classList.toggle("on", x === b));
-    nameField.hidden = tab !== "up";
-    submit.textContent = tab === "in" ? "Masuk" : "Daftar & Masuk";
-  }));
-
-  gate.querySelector("#authform").addEventListener("submit", async (e) => {
+  // submit masuk/daftar
+  modal().querySelector("#authform").addEventListener("submit", async (e) => {
     e.preventDefault();
     const f = new FormData(e.target);
     const email = String(f.get("email")).trim().toLowerCase();
     const pass = String(f.get("pass"));
-    submit.disabled = true;
+    const btn = e.target.querySelector('button[type="submit"]');
+    if (!/^[^@\s]+@[^@\s.]+\.[^@\s]+$/.test(email)) return toast("Format email belum benar.", "error");
+    btn.disabled = true;
     try {
-      if (tab === "up") {
+      if (state.mode !== "firebase") {           // Mode demo: akun lokal perangkat
+        setUser({ email, name: String(f.get("name") || email.split("@")[0]), local: tab === "up" ? true : state.user.local });
+        toast(tab === "up" ? "Akun demo dibuat di perangkat ini." : "Masuk (mode demo).", "ok");
+      } else if (tab === "up") {
         await fb.signUpEmail(email, pass);
         await fb.fsSet("users", fb.currentUid(), {
-          name: String(f.get("name") || "").trim(), phone: "", role: "pemain", email,
+          name: String(f.get("name") || "").trim(), phone: state.user.phone || "", role: "pemain", email,
         });
-        toast("Akun dibuat. Selamat datang!", "ok");
+        toast("Akun terdaftar. Selamat datang!", "ok");
       } else {
         await fb.signInEmail(email, pass);
+        toast("Berhasil masuk.", "ok");
       }
+      closeAuth();
     } catch (err) {
-      toast(ERR[err.code] || `Login gagal (${err.code || err.message}).`, "error");
-    } finally {
-      submit.disabled = false;
+      toast(ERR[err.code] || `Gagal (${err.code || err.message}).`, "error");
+    } finally { btn.disabled = false; }
+  });
+
+  modal().querySelectorAll("[data-tab]").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
+  modal().querySelector("#authClose").onclick = closeAuth;
+  modal().addEventListener("click", (e) => { if (e.target === modal()) closeAuth(); });
+
+  // delegasi klik zona login (header) & menu mobile
+  document.body.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-act]");
+    if (b) {
+      const a = b.dataset.act;
+      if (a === "login") openAuth("in");
+      else if (a === "register") openAuth("up");
+      else if (a === "menu") b.closest(".user-chip")?.querySelector(".uchip-menu")?.classList.toggle("open");
+      else if (a === "logout") doLogout();
+      return;
     }
+    if (!e.target.closest(".user-chip"))
+      document.querySelectorAll(".uchip-menu.open").forEach((m) => m.classList.remove("open"));
   });
+}
 
-  gate.querySelector("#btnGuest").addEventListener("click", async () => {
-    try { await fb.signInGuest(); }
-    catch (err) { toast(ERR[err.code] || "Mode tamu gagal diaktifkan.", "error"); }
-  });
-
-  // Kode pengelola opsional di halaman login (tanpa akun terdaftar)
-  gate.querySelector("#btnAdmin").addEventListener("click", async () => {
-    const pin = prompt("Kode pengelola:");
-    if (pin === APP.adminPin) {
-      if (!fb.currentUid()) await fb.signInGuest();
-      await grantAdmin();
-      hideGate();
-      toast("Masuk sebagai Pengelola.", "ok");
-    } else toast("Kode salah.", "error");
-  });
+async function doLogout() {
+  if (state.mode === "firebase") await fb.signOutUser();   // otomatis jadi tamu anonim lagi
+  else setUser({ email: "", name: "", local: false });
+  toast("Anda keluar.", "ok");
+  renderAuthZone();
 }

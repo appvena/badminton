@@ -1,6 +1,6 @@
 // sw.js — cache app-shell ringan (strategi: precache + cache-first aset,
 // network-first navigasi dengan fallback offline)
-const V = "srisp-v2";
+const V = "srisp-v4";
 const CORE = [
   "/", "/index.html", "/css/style.css",
   "/js/app.js", "/js/config.js", "/js/ui.js", "/js/ui-helpers.js", "/js/auth.js",

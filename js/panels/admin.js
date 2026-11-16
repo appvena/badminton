@@ -15,8 +15,11 @@ function pinGate(root) {
     </form>`;
   $("#pinform").addEventListener("submit", (e) => {
     e.preventDefault();
-    if ($("#pin").value === APP.adminPin) {
-      store.grantAdmin();
+    if (store.state.mode === "firebase" && store.state.user.role !== "admin") {
+      toast("Akun ini belum punya peran admin. Atur role 'admin' pada dokumen users di Firebase Console.", "error", 4200);
+      return;
+    }
+    if (store.verifyAdminPin($("#pin").value)) {
       toast("Selamat bertugas, Pengelola.", "ok");
       render(root);
     } else toast("Kode salah.", "error");
@@ -105,7 +108,41 @@ export function render(root) {
     <h2 class="sec">Pemesanan Mendatang</h2>
     <div class="tb-list" id="bookBox">${todayBookings()}</div>
     <h2 class="sec">Data Lapangan</h2>
-    <div class="tb-list" id="courtsBox">${courtsForm()}</div>`;
+    <div class="tb-list" id="courtsBox">${courtsForm()}</div>
+    ${(store.state.mode === "demo" || store.isSuperAdmin()) ? `
+    <h2 class="sec">Logo Aplikasi</h2>
+    <div class="logo-box">
+      <div class="lb-prev">${store.logoData() ? `<img src="${store.logoData()}" alt="Logo">` : `<span class="muted">Belum ada logo — ikon baku SRISP dipakai.</span>`}</div>
+      <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml">
+      <div class="lb-actions">
+        <button id="logoSave" class="btn primary sm">Unggah &amp; Simpan</button>
+        ${store.logoData() ? `<button id="logoClear" class="btn danger sm">Hapus Logo</button>` : ""}
+      </div>
+      <p class="muted hint-sim">PNG/JPG/WebP — otomatis dikecilkan ke maks 512px lalu disimpan ke Firestore (<em>settings/app</em>). Hanya superadmin yang dapat mengubah (ditegakkan oleh Rules).</p>
+    </div>` : ""}`;
+
+  const lf = root.querySelector("#logoFile");
+  const prevBox = root.querySelector(".lb-prev");
+  lf?.addEventListener("change", () => {
+    if (!lf.files?.[0]) return;
+    const u = URL.createObjectURL(lf.files[0]);
+    prevBox.innerHTML = `<img src="${u}" alt="Pratinjau">`;
+  });
+  root.querySelector("#logoSave")?.addEventListener("click", async () => {
+    const file = lf?.files?.[0];
+    if (!file) return toast("Pilih berkas gambar dulu.", "error");
+    try {
+      const dataURL = await resizeDataURL(file, 512);
+      await store.setLogo(dataURL);
+      toast("Logo tersimpan dan langsung tampil di semua perangkat.", "ok");
+      render(root);
+    } catch (e) { toast(e.message || "Gagal memproses gambar.", "error"); }
+  });
+  root.querySelector("#logoClear")?.addEventListener("click", async () => {
+    await store.setLogo("");
+    toast("Logo dihapus.", "ok");
+    render(root);
+  });
 
   $("#logout").onclick = async () => { await store.leaveAdmin(); render(root); };
 
@@ -168,6 +205,29 @@ export function render(root) {
 }
 
 let adminSel = "";
+
+// Kompres gambar logo di perangkat sebelum tulis ke Firestore (limit dokumen 1 MiB)
+function resizeDataURL(file, max = 512) {
+  return new Promise((resolve, reject) => {
+    if (file.size > 4 * 1024 * 1024) return reject(new Error("Maksimal 4 MB."));
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const sc = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * sc));
+      c.height = Math.max(1, Math.round(img.height * sc));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      const isJpg = file.type === "image/jpeg";
+      const out = isJpg ? c.toDataURL("image/jpeg", 0.92) : c.toDataURL("image/png");
+      if (out.length > 900000) return reject(new Error("Hasil terlalu besar; coba gambar lebih sederhana atau format JPG."));
+      resolve(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Berkas bukan gambar yang valid.")); };
+    img.src = url;
+  });
+}
 
 // Realtime: gambar ulang konsol & daftar; form tambah lapangan hanya diganti
 // bila pengguna tidak sedang mengetik di dalamnya

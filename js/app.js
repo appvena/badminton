@@ -1,11 +1,11 @@
 // ============================================================
-// app.js — bootstrap, router panel dengan transisi ringan,
-// registrasi service worker.
+// app.js — bootstrap, router panel, chrome header/footer, SW.
 // ============================================================
 import { APP } from "./config.js";
 import * as store from "./store.js";
-import { $, toast } from "./ui.js";
-import { initAuthUI, showGate, hideGate } from "./auth.js";
+import { $, toast, prettyDate, dateKey } from "./ui.js";
+import { initAuthUI, renderAuthZone } from "./auth.js";
+import { setGo } from "./router-shim.js";
 
 import * as home from "./panels/home.js";
 import * as booking from "./panels/booking.js";
@@ -14,24 +14,24 @@ import * as tournament from "./panels/tournament.js";
 import * as history from "./panels/history.js";
 import * as admin from "./panels/admin.js";
 
-const PANELS = {
-  home, booking, courts, tournament, history, admin,
-};
-
+const PANELS = { home, booking, courts, tournament, history, admin };
 let current = "home";
 let unsub = null;
+
+function markActive(name) {
+  document.querySelectorAll(".mainnav a, .mm-nav a").forEach((a) =>
+    a.classList.toggle("on", a.dataset.nav === name));
+  document.querySelectorAll(".tabbar button").forEach((b) =>
+    b.classList.toggle("on", b.dataset.go === name));
+}
 
 function mountPanel(name, animate = true) {
   const sec = $(`#p-${name}`);
   if (!sec) return;
-  // Bersihkan panel sebelumnya
   if (unsub) { unsub(); unsub = null; }
-  for (const p of document.querySelectorAll(".panel")) {
-    p.classList.toggle("active", p === sec);
-  }
-  document.querySelectorAll(".tabbar button").forEach((b) =>
-    b.classList.toggle("on", b.dataset.go === name));
+  for (const p of document.querySelectorAll(".panel")) p.classList.toggle("active", p === sec);
   current = name;
+  markActive(name);
   if (animate) { sec.classList.remove("enter"); void sec.offsetWidth; sec.classList.add("enter"); }
   PANELS[name].render(sec);
   unsub = store.onChange(() => PANELS[name].update?.(sec));
@@ -42,7 +42,6 @@ function go(name) {
   if (location.hash !== `#${name}`) location.hash = `#${name}`;
   else mountPanel(name);
 }
-import { setGo } from "./router-shim.js";
 setGo(go);
 
 window.addEventListener("hashchange", () => {
@@ -50,48 +49,69 @@ window.addEventListener("hashchange", () => {
   if (name !== current) mountPanel(name);
 });
 
-document.querySelector(".tabbar").addEventListener("click", (e) => {
+// ---- menu mobile ----
+function buildMobileMenu() {
+  const mm = document.createElement("div");
+  mm.className = "mobile-menu";
+  mm.innerHTML = `<div class="mm-sheet">
+      <div class="mm-nav">${$("#mainnav").innerHTML}</div>
+      <div class="mm-auth"></div>
+    </div>`;
+  document.body.append(mm);
+  $("#hamburger").onclick = () => { mm.classList.add("open"); markActive(current); renderAuthZone(); };
+  mm.addEventListener("click", (e) => {
+    if (e.target === mm) mm.classList.remove("open");
+    if (e.target.closest(".mm-nav a")) mm.classList.remove("open");
+  });
+}
+
+document.querySelector(".tabbar")?.addEventListener("click", (e) => {
   const b = e.target.closest("button[data-go]");
   if (b) go(b.dataset.go);
 });
-$("#brandHome").addEventListener("click", () => go("home"));
-$("#btnUser").addEventListener("click", () => go("history"));
+$("#brandHome").addEventListener("click", (e) => { e.preventDefault(); go("home"); });
 
-// ---- chrome atas: mode + koneksi + nama pengguna ----
+// ---- chrome ----
 function paintChrome() {
+  const st = store.state;
   const tag = $("#modeTag");
-  tag.textContent = store.state.mode === "firebase" ? "FIREBASE" : store.state.mode === "demo" ? "DEMO" : "";
-  tag.className = "tag " + (store.state.mode === "firebase" ? "tag-fb" : "tag-demo");
-  const dot = $("#netDot");
-  dot.className = "netdot " + (store.state.net ? "on" : "off");
-  dot.title = store.state.net ? "Terhubung" : "Luring";
-  $("#offlineBar").hidden = store.state.net;
-  const u = store.state.user;
-  $("#userName").textContent = u.name || (store.isAdmin() ? "Pengelola" :
-    u.email || (u.uid ? "Tamu" : "Masuk"));
+  tag.textContent = st.mode === "firebase" ? "SERVER: FIRESTORE" : st.mode === "demo" ? "MODE DEMO" : "";
+  $("#offlineBar").hidden = st.net;
+  $("#utilDate").textContent = prettyDate(dateKey());
+  const live = store.liveMatches();
+  $("#utilTicker").textContent = live.length
+    ? `● LIVE · ${live[0].teamA} vs ${live[0].teamB} — SRISP Open 2026`
+    : `${APP.name} — ${APP.tagline}`;
+  renderAuthZone();
+  paintLogo();
+}
+
+function paintLogo() {
+  const lg = store.logoData();
+  const top = $("#topLogo");
+  $("#brandSvg").hidden = !!lg;
+  top.hidden = !lg;
+  if (lg && top.getAttribute("src") !== lg) {
+    top.src = lg;
+    const fav = document.querySelector('link[rel="icon"]');
+    if (fav) fav.href = lg;
+  }
 }
 
 // ---- boot ----
 async function boot() {
-  $("#copyright").textContent = `${APP.copyright} · ${APP.tagline}`;
-  const t0 = performance.now();
   initAuthUI();
+  buildMobileMenu();
+  const t0 = performance.now();
   await store.init();
   store.onChange(paintChrome);
   paintChrome();
 
   if (store.state.mode === "firebase") {
-    showGate();
-    store.watchAuth((signedIn) => {
-      signedIn ? hideGate() : showGate();
-      paintChrome();
-    });
-  } else {
-    hideGate();
+    store.watchAuth(() => paintChrome());   // sesi tamu anonim dibuat otomatis di store
   }
 
-  // splash minimal 550ms agar transisi terasa, lalu hilang
-  const wait = Math.max(0, 550 - (performance.now() - t0));
+  const wait = Math.max(0, 500 - (performance.now() - t0));
   setTimeout(() => {
     $("#splash").classList.add("hide");
     setTimeout(() => $("#splash").remove(), 420);
@@ -104,7 +124,4 @@ async function boot() {
   }
 }
 
-boot().catch((e) => {
-  console.error(e);
-  toast("Gagal memuat aplikasi.", "error");
-});
+boot().catch((e) => { console.error(e); toast("Gagal memuat aplikasi.", "error"); });

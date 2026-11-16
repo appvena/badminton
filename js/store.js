@@ -13,7 +13,7 @@ const LS_USER = "srisp_user_v1";
 
 export const state = {
   mode: "boot",           // boot | demo | firebase
-  courts: [], bookings: [], tournaments: [], matches: [],
+  courts: [], bookings: [], tournaments: [], matches: [], settings: [],
   user: loadJSON(LS_USER, { name: "", phone: "", admin: false, uid: "" }),
   net: navigator.onLine,
   ready: false,
@@ -94,6 +94,7 @@ export async function init() {
     const bind = (coll, key) => fb.fsSubscribe(coll, (rows) => { state[key] = rows; emit(); });
     bind("courts", "courts"); bind("bookings", "bookings");
     bind("tournaments", "tournaments"); bind("matches", "matches");
+    bind("settings", "settings");
     state.ready = true; emit();
     try { await seedIfEmpty(); } catch (e) { console.warn("seed awal:", e.code || e.message); }
   } else {
@@ -107,46 +108,66 @@ export async function init() {
 }
 
 // Pantau status login Firebase; panggil cb(true) saat masuk, cb(false) saat keluar
+let guestTried = false;
 export function watchAuth(cb) {
   fb.onAuthChange(async (u) => {
     if (!u) {
       state.user = { name: "", phone: "", admin: false, uid: "", email: "", role: "", guest: false };
       localStorage.setItem(LS_USER, JSON.stringify(state.user));
+      // Sesi anonim senyap: publik boleh menjelajah tanpa akun (diperlukan
+      // oleh aturan Firestore untuk membaca jadwal/cek bentrok).
+      if (!guestTried) { guestTried = true; fb.signInGuest().catch(() => { guestTried = false; }); }
       cb(false); emit(); return;
     }
-    state.user = { ...state.user, uid: u.uid, email: u.email, guest: !!u.isAnonymous, admin: state.user.admin };
-    // Aturan Firestore bisa menolak tulis sebelum ada sesi; coba seed lagi
-    // setelah login (termasuk mode tamu/anonim) bila koleksi masih kosong.
-    seedIfEmpty().catch((e) => console.warn("seed:", e.code || e.message));
+    guestTried = false;
+    state.user = { ...state.user, uid: u.uid, email: u.email, guest: !!u.isAnonymous };
     try {
       const prof = await fb.fsGet("users", u.uid);
       if (prof) Object.assign(state.user, { name: prof.name || state.user.name, phone: prof.phone || state.user.phone, role: prof.role || "pemain" });
       else if (!u.isAnonymous) await fb.fsSet("users", u.uid, { name: "", phone: "", role: "pemain", email: u.email });
     } catch (e) { console.warn("profil users:", e.code || e.message); }
+    // Seed hanya boleh dilakukan pengelola (lihat aturan Firestore).
+    if (isStaff() || state.mode === "demo")
+      seedIfEmpty().catch((e) => console.warn("seed:", e.code || e.message));
     localStorage.setItem(LS_USER, JSON.stringify(state.user));
     cb(true); emit();
   });
 }
 
-export const isAdmin = () => state.user.role === "admin" || state.user.admin === true;
+export const isStaff = () => ["admin", "superadmin"].includes(state.user.role);
 
-export async function grantAdmin() {
-  if (state.mode === "firebase" && state.user.uid) {
-    await fb.fsSet("users", state.user.uid, {
-      name: state.user.name || "", phone: state.user.phone || "", role: "admin", email: state.user.email || "",
-    });
-    state.user.role = "admin";
-  } else {
-    setUser({ admin: true });
-  }
-  persistAndEmit();
+// Peran admin otoritatif dari koleksi users (Firestore). PIN hanya membuka
+// sesi pengelola di perangkat ini — tidak bisa menulis peran sendiri ke DB.
+export const isAdmin = () =>
+  state.user.pinOk === true && (isStaff() || state.mode === "demo");
+
+export function verifyAdminPin(pin) {
+  if (pin !== APP.adminPin) return false;
+  setUser({ pinOk: true });
+  return true;
 }
 
-export async function leaveAdmin() {
-  if (state.mode === "firebase" && state.user.uid && !state.user.guest) {
-    await fb.fsSet("users", state.user.uid, { role: "pemain" });
-    state.user.role = "pemain";
-  } else state.user.admin = false;
+export const isSuperAdmin = () => state.user.role === "superadmin";
+
+// ---- Logo aplikasi (unggah oleh superadmin) ----
+export function logoData() {
+  if (state.mode === "firebase") {
+    const s = state.settings.find((x) => x.id === "app");
+    return (s && s.logo) || "";
+  }
+  return localStorage.getItem("srisp_logo") || "";
+}
+
+export async function setLogo(dataURL) {
+  if (state.mode === "firebase")
+    await fb.fsSet("settings", "app", { logo: dataURL || "", updatedAt: Date.now() });
+  else if (dataURL) localStorage.setItem("srisp_logo", dataURL);
+  else localStorage.removeItem("srisp_logo");
+  emit();
+}
+
+export function leaveAdmin() {
+  state.user.pinOk = false;
   localStorage.setItem(LS_USER, JSON.stringify(state.user));
   emit();
 }
