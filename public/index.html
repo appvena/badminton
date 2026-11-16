@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SRISP Badminton — Lapangan, Pesanan & Skor Langsung</title>
+  <meta name="description" content="Aplikasi lapangan badminton SRISP: pemesanan lapangan, status lapangan aktif dan kosong real-time, turnamen dan live score.">
+  <meta name="theme-color" content="#F4F0E6">
+  <meta property="og:title" content="SRISP Badminton">
+  <meta property="og:description" content="Lapangan. Turnamen. Skor Langsung.">
+  <meta property="og:type" content="website">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- Splash / animasi loading -->
+  <div id="splash" class="splash" aria-hidden="true">
+    <svg viewBox="0 0 64 64" width="64" height="64" class="shuttle" aria-hidden="true">
+      <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+        <path d="M20 8 L32 26 L44 8" class="fe1"/>
+        <path d="M26 7 L32 26 L38 7" class="fe2"/>
+        <path d="M32 3 L32 26" class="fe3"/>
+      </g>
+      <circle cx="32" cy="34" r="7" fill="var(--accent)"/>
+      <path d="M8 56 C24 52 40 46 54 34" class="trail" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 6" stroke-linecap="round"/>
+    </svg>
+    <div class="splash-word">SRISP <span>Badminton</span></div>
+    <div class="splash-bar"><i></i></div>
+  </div>
+
+  <!-- App shell -->
+  <header class="topbar">
+    <div class="brand" id="brandHome" role="button" tabindex="0">
+      <svg viewBox="0 0 28 28" width="26" height="26" aria-hidden="true">
+        <circle cx="9" cy="19" r="4.4" fill="var(--accent)"/>
+        <path d="M12 16 L20 5 M15 17 L23 8 M11 12 L16 4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none"/>
+      </svg>
+      <span class="wordmark">SRISP<em>badminton</em></span>
+    </div>
+    <div class="top-meta">
+      <span id="modeTag" class="tag"></span>
+      <span id="netDot" class="netdot on" title="Koneksi"></span>
+      <button id="btnUser" class="chip-user" aria-label="Profil dan riwayat">
+        <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><circle cx="10" cy="6.4" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3.6 16.6c1.2-2.7 3.6-4 6.4-4s5.2 1.3 6.4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span id="userName">Tamu</span>
+      </button>
+    </div>
+  </header>
+
+  <div id="offlineBar" class="offline-bar" hidden>Terputus dari internet — data terakhir ditampilkan<em></em></div>
+
+  <main id="panels" class="panels">
+    <section id="p-home" class="panel active" data-title="Beranda"></section>
+    <section id="p-booking" class="panel" data-title="Pemesanan"></section>
+    <section id="p-courts" class="panel" data-title="Lapangan"></section>
+    <section id="p-tournament" class="panel" data-title="Turnamen"></section>
+    <section id="p-history" class="panel" data-title="Riwayat"></section>
+    <section id="p-admin" class="panel" data-title="Kelola"></section>
+  </main>
+
+  <nav class="tabbar" aria-label="Navigasi utama">
+    <button data-go="home" class="on">
+      <svg viewBox="0 0 24 24"><path d="M4 11.5 12 4l8 7.5M6.5 10v9h11v-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Beranda</span></button>
+    <button data-go="booking">
+      <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2.4" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 9.6h16M8.5 3.5V6.5M15.5 3.5V6.5M9 14h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Pesan</span></button>
+    <button data-go="courts">
+      <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M4 12h16M12 4v16" stroke="currentColor" stroke-width="1.2" stroke-dasharray="2 2.4"/></svg><span>Lapangan</span></button>
+    <button data-go="tournament">
+      <svg viewBox="0 0 24 24"><path d="M6 4h12v5a6 6 0 0 1-12 0V4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M6 5.5H3.5a2.5 2.5 0 0 0 2.5 4M18 5.5h2.5a2.5 2.5 0 0 1-2.5 4M9.5 20h5M12 15v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Turnamen</span></button>
+    <button data-go="history">
+      <svg viewBox="0 0 24 24"><path d="M12 6.8V12l3.4 2M5.5 12a6.5 6.5 0 1 1 2 4.7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M5 12H3.4M5.2 16.8 4 18.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span>Riwayat</span></button>
+    <button data-go="admin">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4 6 18M18 18l-1.6-1.6M7.6 7.6 6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>Kelola</span></button>
+  </nav>
+
+  <footer class="copyright" id="copyright">© SRISP 2026 · Lapangan. Turnamen. Skor Langsung.</footer>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>
