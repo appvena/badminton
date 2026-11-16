@@ -1,0 +1,150 @@
+// ============================================================
+// app.js — bootstrap tangguh: splash selalu hilang (watchdog),
+// registrasi service worker lebih dulu, auto-reload saat update,
+// init Firebase dengan timeout → fallback mode demo.
+// ============================================================
+import { APP } from "./config.js";
+import * as store from "./store.js";
+import { $, toast, prettyDate, dateKey } from "./ui.js";
+import { initAuthUI, renderAuthZone } from "./auth.js";
+import { setGo } from "./router-shim.js";
+
+import * as home from "./panels/home.js";
+import * as booking from "./panels/booking.js";
+import * as courts from "./panels/courts.js";
+import * as tournament from "./panels/tournament.js";
+import * as history from "./panels/history.js";
+import * as admin from "./panels/admin.js";
+
+const PANELS = { home, booking, courts, tournament, history, admin };
+let current = "home";
+let unsub = null;
+let splashHidden = false;
+const T0 = performance.now();
+
+// ---- watchdog: splash tidak boleh lebih dari 3,5 detik ----
+function hideSplash() {
+  if (splashHidden) return;
+  splashHidden = true;
+  const s = $("#splash");
+  if (!s) return;
+  s.classList.add("hide");
+  setTimeout(() => s.remove(), 450);
+  const name = location.hash.slice(1) || "home";
+  if (!$("#p-home").innerHTML) mountPanel(PANELS[name] ? name : "home", false);
+}
+setTimeout(hideSplash, 3500);
+
+// ---- service worker: daftar paling awal, bukan setelah init ----
+function setupSW() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.addEventListener("controllerchange", () => location.reload());
+  navigator.serviceWorker.register("/sw.js").then((reg) => {
+    if (reg.waiting) reg.waiting.postMessage("SKIP");
+    reg.addEventListener("updatefound", () => {
+      reg.installing?.addEventListener("statechange", () => {
+        if (reg.installing.state === "installed" && navigator.serviceWorker.controller)
+          reg.installing.postMessage?.("SKIP");
+      });
+    });
+  }).catch(() => {});
+}
+setupSW();
+
+function markActive(name) {
+  document.querySelectorAll(".mainnav a, .mm-nav a").forEach((a) =>
+    a.classList.toggle("on", a.dataset.nav === name));
+  document.querySelectorAll(".tabbar button").forEach((b) =>
+    b.classList.toggle("on", b.dataset.go === name));
+}
+
+function mountPanel(name, animate = true) {
+  const sec = $(`#p-${name}`);
+  if (!sec) return;
+  if (unsub) { unsub(); unsub = null; }
+  for (const p of document.querySelectorAll(".panel")) p.classList.toggle("active", p === sec);
+  current = name;
+  markActive(name);
+  if (animate) { sec.classList.remove("enter"); void sec.offsetWidth; sec.classList.add("enter"); }
+  PANELS[name].render(sec);
+  unsub = store.onChange(() => PANELS[name].update?.(sec));
+}
+
+function go(name) {
+  if (!PANELS[name]) name = "home";
+  if (location.hash !== `#${name}`) location.hash = `#${name}`;
+  else mountPanel(name);
+}
+setGo(go);
+
+window.addEventListener("hashchange", () => {
+  const name = location.hash.slice(1) || "home";
+  if (name !== current) mountPanel(name);
+});
+
+function buildMobileMenu() {
+  if ($(".mobile-menu") || !$("#mainnav") || !$("#hamburger")) return;
+  const mm = document.createElement("div");
+  mm.className = "mobile-menu";
+  mm.innerHTML = `<div class="mm-sheet">
+      <div class="mm-nav">${$("#mainnav").innerHTML}</div>
+      <div class="mm-auth"></div>
+    </div>`;
+  document.body.append(mm);
+  $("#hamburger").onclick = () => { mm.classList.add("open"); markActive(current); renderAuthZone(); };
+  mm.addEventListener("click", (e) => {
+    if (e.target === mm) mm.classList.remove("open");
+    if (e.target.closest(".mm-nav a")) mm.classList.remove("open");
+  });
+}
+
+document.querySelector(".tabbar")?.addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-go]");
+  if (b) go(b.dataset.go);
+});
+$("#brandHome")?.addEventListener("click", (e) => { e.preventDefault(); go("home"); });
+
+function paintChrome() {
+  const st = store.state;
+  const tag = $("#modeTag");
+  if (tag) tag.textContent = st.mode === "firebase" ? "SERVER: FIRESTORE" : st.mode === "demo" ? "MODE DEMO" : "";
+  const ob = $("#offlineBar"); if (ob) ob.hidden = st.net;
+  const ud = $("#utilDate"); if (ud) ud.textContent = prettyDate(dateKey());
+  const live = store.liveMatches();
+  const tk = $("#utilTicker");
+  if (tk) tk.textContent = live.length
+    ? `● LIVE · ${live[0].teamA} vs ${live[0].teamB} — SRISP Open 2026`
+    : `${APP.name} — ${APP.tagline}`;
+  renderAuthZone();
+  paintLogo();
+}
+
+function paintLogo() {
+  const top = $("#topLogo"), fav = document.querySelector('link[rel="icon"]');
+  if (!top) return;
+  const lg = store.logoData();
+  $("#brandSvg").hidden = !!lg;
+  top.hidden = !lg;
+  if (lg && top.getAttribute("src") !== lg) {
+    top.src = lg;
+    if (fav) fav.href = lg;
+  }
+}
+
+async function boot() {
+  try { initAuthUI(); } catch (e) { console.error("auth UI:", e); }
+  buildMobileMenu();
+  try {
+    await store.init();
+    store.onChange(paintChrome);
+    paintChrome();
+    if (store.state.mode === "firebase") store.watchAuth(() => paintChrome());
+  } catch (e) {
+    console.error(e);
+    toast("Koneksi ke server bermasalah — memakai data lokal.", "error");
+  }
+  const t0 = performance.now();
+  setTimeout(hideSplash, Math.max(150, 500 - (t0 - T0)));
+}
+
+boot();

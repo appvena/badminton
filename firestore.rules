@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function role() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAdmin() {
+      return signedIn() && (role() == 'admin' || role() == 'superadmin');
+    }
+    function isSuperAdmin() { return signedIn() && role() == 'superadmin'; }
+
+    // ---- Lapangan: publik lihat, admin kelola ----
+    match /courts/{courtId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---- Turnamen & pertandingan ----
+    match /tournaments/{tId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /matches/{mId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---- Pengaturan aplikasi (logo dll.): superadmin ----
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isSuperAdmin();
+    }
+
+    // ---- Pemesanan ----
+    match /bookings/{bId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'active'
+        && request.resource.data.endHour > request.resource.data.startHour
+        && request.resource.data.startHour >= 0
+        && request.resource.data.endHour <= 24
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+      allow update: if isAdmin()
+        || (signedIn()
+            && resource.data.ownerId == request.auth.uid
+            && request.resource.data.diff(resource.data)
+                 .affectedKeys().hasOnly(['status'])
+            && request.resource.data.status == 'cancelled');
+      allow delete: if isAdmin();
+    }
+
+    // ---- Pengguna ----
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.role == 'pemain';
+      allow update: if isAdmin()
+        || (signedIn() && request.auth.uid == uid
+            && request.resource.data.diff(resource.data)
+                 .affectedKeys().hasNo(['role'])
+            && request.resource.data.role == resource.data.role);
+      allow delete: if false;
+    }
+
+    // Tolak koleksi tak dikenal
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
