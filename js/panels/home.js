@@ -1,6 +1,12 @@
 // Panel: Beranda — hero + status lapangan real-time
 import * as store from "../store.js";
 import { courtStatusInfo, dateKey, hourLabel, skeleton, esc } from "../ui.js";
+
+// "Kondisi Lapangan *Saat Ini*" → penekanan <em>, sisanya di-escape
+function heroTitle(raw) {
+  return esc(raw || "Kondisi Lapangan *Saat Ini* dari GOR")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>");
+}
 import { go } from "../router-shim.js";
 
 const HERO = "/img/hero.webp";
@@ -15,7 +21,8 @@ function tile(c) {
     <span class="ct-status"><i></i>${info.label}</span>
     <span class="ct-next">${s === "free" ? (free !== null ? "Kosong " + hourLabel(free) : "Kosong sekarang")
       : (s === "playing" || s === "booked") ? (free !== null ? "Penuh s/d " + hourLabel(free) : "Penuh hari ini")
-      : s === "maint" ? "Perawatan" : s === "closed" ? "Tutup" : "—"}</span>
+      : s === "maint" ? "Nonaktif sementara"
+      : s === "closed" ? "Buka " + hourLabel(c.openFrom) + "–" + hourLabel(c.openTo) : "—"}</span>
   </button>`;
 }
 
@@ -38,9 +45,9 @@ export function render(root) {
     <section class="hero">
       <img class="hero-img" src="${HERO}" alt="Aksi pertandingan badminton" fetchpriority="high" decoding="async">
       <div class="hero-in">
-        <span class="kicker">${esc(fullDate)} · GOR SRISP</span>
-        <h1>Status <em>Lapangan</em> Real-Time</h1>
-        <p>${counts.free} lapangan kosong sekarang · okupansi hari ini ${occ}% · ${live.length} pertandingan live</p>
+        <span class="kicker">${esc(fullDate)} · ${esc(store.settingsData().venueName || st.tournaments[0]?.venue || "")}</span>
+        <h1>${heroTitle(store.settingsData().heroTitle)}</h1>
+        <p>${counts.free} lapangan kosong sekarang · keterisian lapangan hari ini ${occ}% · ${live.length} pertandingan live</p>
         <div class="hero-btns">
           <button class="btn primary" data-go="booking">Pesan Sekarang</button>
           <button class="btn light" data-go="tournament">Skor Langsung</button>
@@ -52,7 +59,7 @@ export function render(root) {
       <div class="stat"><b>${counts.playing}</b><span>Sedang Dimainkan</span></div>
       <div class="stat"><b>${counts.booked}</b><span>Belum Dimainkan</span></div>
       <div class="stat"><b>${counts.free}</b><span>Kosong</span></div>
-      <div class="stat"><b>${occ}%</b><span>Okupansi</span></div>
+      <div class="stat"><b>${occ}%</b><span>Keterisian</span></div>
     </div>
 
     ${lm ? `<button class="live-card" data-go="tournament">

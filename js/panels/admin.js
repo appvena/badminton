@@ -103,26 +103,33 @@ function todayBookings() {
 }
 
 // ---------- Tab: Lapangan ----------
+let editCourt = "";
 function courtsForm() {
+  const ed = editCourt && store.state.courts.find((x) => x.id === editCourt);
   return `
     ${store.state.courts.map((c) => `<div class="tb-item">
       <div><b>${esc(c.code)} — ${esc(c.name)}</b>
         <span>${rupiah(c.price)}/jam · ${hourLabel(c.openFrom)}–${hourLabel(c.openTo)} · ${(c.facilities || []).join(", ")}</span></div>
+      <span class="cc-acts"><button class="btn ghost sm" data-editc="${c.id}">Ubah</button>
       <button class="btn ghost sm" data-maint="${c.id}">${c.statusFlag === "maint" ? "Aktifkan" : "Perawatan"}</button>
+      <button class="btn danger sm" data-delcourt="${c.id}">Hapus</button></span>
     </div>`).join("")}
     <form id="cform" class="form compact">
-      <h3>Tambah Lapangan</h3>
+      <h3>${ed ? "Ubah: " + esc(ed.name) : "Tambah Lapangan"}</h3>
       <div class="frow">
-        <label>Kode<span><input name="code" required maxlength="4" placeholder="L7"></span></label>
-        <label>Nama<span><input name="name" required maxlength="40" placeholder="Lapangan Baru"></span></label>
+        <label>Kode<span><input name="code" required maxlength="4" value="${ed ? esc(ed.code) : ""}" placeholder="L7"></span></label>
+        <label>Nama<span><input name="name" required maxlength="40" value="${ed ? esc(ed.name) : ""}" placeholder="Lapangan Baru"></span></label>
       </div>
       <div class="frow">
-        <label>Tarif/jam<span><input name="price" type="number" min="0" step="5000" value="50000" required></span></label>
-        <label>Buka<span><input name="openFrom" type="number" min="5" max="14" value="8" required></span></label>
-        <label>Tutup<span><input name="openTo" type="number" min="15" max="23" value="22" required></span></label>
+        <label>Tarif/jam<span><input name="price" type="number" min="0" step="5000" value="${ed ? ed.price : 50000}" required></span></label>
+        <label>Buka<span><input name="openFrom" type="number" min="5" max="14" value="${ed ? ed.openFrom : 8}" required></span></label>
+        <label>Tutup<span><input name="openTo" type="number" min="15" max="23" value="${ed ? ed.openTo : 22}" required></span></label>
       </div>
-      <label>Fasilitas<span><input name="facilities" maxlength="80" placeholder="Matras, Kipas, Parkir"></span></label>
-      <button class="btn primary" type="submit">Simpan Lapangan</button>
+      <label>Fasilitas<span><input name="facilities" maxlength="80" value="${ed ? esc((ed.facilities || []).join(", ")) : ""}" placeholder="Matras, Kipas, Parkir"></span></label>
+      <div class="row-btns">
+        <button class="btn primary" type="submit">${ed ? "Simpan Perubahan" : "Simpan Lapangan"}</button>
+        ${ed ? `<button class="btn ghost" type="button" data-editcancel>Batal</button>` : ""}
+      </div>
     </form>`;
 }
 
@@ -137,6 +144,8 @@ function settingsForm() {
       <div class="frow"><label>Nama Aplikasi<span><input name="appName" value="${esc(s.appName)}" maxlength="40"></span></label>
         <label>Nama Singkat / Inisial<small>(tampil miring di header)</small><span><input name="brandShort" value="${esc(s.brandShort || "")}" maxlength="10" placeholder="kosong = otomatis dari nama"></span></label></div>
       <label>Tagline<span><input name="tagline" value="${esc(s.tagline)}" maxlength="60"></span></label>
+      <label>Judul besar di Beranda<small>(bungkus kata dengan *asterisk* untuk penekanan, mis. Kondisi Lapangan *Saat Ini*)</small>
+        <input name="heroTitle" value="${esc(s.heroTitle)}" maxlength="60"></label>
       <div class="frow"><label>Nama Venue<span><input name="venueName" value="${esc(s.venueName)}" maxlength="40"></span></label>
         <label>Jam Operasional<span><input name="openHours" value="${esc(s.openHours)}" maxlength="40"></span></label></div>
       <label>Alamat<span><input name="address" value="${esc(s.address)}" maxlength="80"></span></label>
@@ -256,6 +265,7 @@ function ensureBound(root) {
     const t = e.target.closest("[data-tab]");
     if (t) { adTab = t.dataset.tab; render(root); return; }
     const b = e.target.closest("button"); if (!b) return;
+    b.blur();   // lepas fokus agar panel boleh langsung menggambar ulang
     if (b.dataset.msel) { adminSel = b.dataset.msel; $("#adBody", root).innerHTML = tabBody(); return; }
     if (b.dataset.ref) { openReferee(store.state.matches.find((x) => x.id === b.dataset.ref)); return; }
     if (b.dataset.qr) { showRefQR(store.state.matches.find((x) => x.id === b.dataset.qr)); return; }
@@ -295,6 +305,25 @@ function ensureBound(root) {
         await store.updateMatchPublic(m0.id, { status: "scheduled", games: [], curA: 0, curB: 0, winner: "" });
       return;
     }
+    if (b.dataset.delcourt) {
+      const c = store.state.courts.find((x) => x.id === b.dataset.delcourt);
+      if (!c) return;
+      const n = store.futureBookingsOf(c.id);
+      const msg = await confirmDialog("Hapus " + (c.name || c.code) + "?",
+        n ? `Ada ${n} pemesanan mendatang memakai lapangan ini — pesanan tersebut ikut terhapus.`
+          : "Lapangan akan hilang dari aplikasi di semua perangkat.");
+      if (!msg) return;
+      try { await store.deleteCourt(c.id); toast("Lapangan dihapus.", "ok"); }
+      catch (e) { toast(e.code === "permission-denied" ? "Hanya pengelola yang dapat menghapus lapangan." : "Gagal: " + (e.code || e.message), "error"); }
+      return;
+    }
+    if (b.dataset.editc) {
+      editCourt = b.dataset.editc;
+      render(root);
+      root.querySelector("#cform input[name=name]")?.focus();
+      return;
+    }
+    if (b.dataset.editcancel) { editCourt = ""; render(root); return; }
     if (b.dataset.maint) {
       const c = store.state.courts.find((x) => x.id === b.dataset.maint);
       if (c) await store.updateCourt(c.id, { statusFlag: c.statusFlag === "maint" ? "ok" : "maint" });
@@ -349,13 +378,20 @@ function ensureBound(root) {
       const f = new FormData(e.target);
       const openFrom = Number(f.get("openFrom")), openTo = Number(f.get("openTo"));
       if (openTo <= openFrom) return toast("Jam tutup harus setelah jam buka.", "error");
-      await store.addCourt({
+      const data = {
         code: String(f.get("code")).trim().toUpperCase(), name: String(f.get("name")).trim(),
         price: Number(f.get("price")), openFrom, openTo,
         facilities: String(f.get("facilities") || "").split(",").map((x) => x.trim()).filter(Boolean),
-        statusFlag: "ok",
-      });
-      toast("Lapangan ditambahkan.", "ok");
+      };
+      if (editCourt) {
+        await store.updateCourt(editCourt, data);
+        toast("Lapangan diperbarui — langsung terlihat di semua perangkat.", "ok");
+        editCourt = "";
+      } else {
+        await store.addCourt({ ...data, statusFlag: "ok" });
+        toast("Lapangan ditambahkan.", "ok");
+      }
+      render(root);
     }
   });
 }
@@ -369,7 +405,8 @@ export function update(root) {
   ensureBound(root);
   const body = root.querySelector("#adBody");
   if (!body) return;
-  if (body.contains(document.activeElement)) return;
+  const ae = document.activeElement;
+  if (ae && ["INPUT", "TEXTAREA", "SELECT"].includes(ae.tagName) && body.contains(ae)) return;
   body.innerHTML = tabBody();
 }
 

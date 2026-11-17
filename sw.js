@@ -1,7 +1,7 @@
 // sw.js — app-shell ringan.
 // Strategi: HTML/JS/CSS = network-first (selalu versi terbaru; cache hanya
 // jadi fallback offline). Gambar/ikon/font = cache-first (hemat & cepat).
-const V = "srisp-v14";
+const V = "srisp-v19";
 const CORE = [
   "/", "/index.html", "/css/style.css",
   "/js/app.js", "/js/config.js", "/js/ui.js", "/js/ui-helpers.js", "/js/auth.js",

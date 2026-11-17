@@ -670,3 +670,14 @@ body:not(.is-staff) .g-staff { display: none !important; }
 .splash-word { font-weight: 800; }
 .splash .shuttle { color: var(--navy); }
 .dchip.on { background: linear-gradient(135deg, var(--navy), var(--accent)); border-color: transparent; }
+
+
+/* ---- v1.9.2 splash ring sederhana ---- */
+.splash { display: grid; place-content: center; gap: 1rem; justify-items: center; }
+.ring { width: 54px; height: 54px; border-radius: 50%; border: 4px solid rgba(228, 0, 43, .14);
+  border-top-color: #E4002B; animation: ringspin .8s linear infinite; }
+@keyframes ringspin { to { transform: rotate(360deg); } }
+#splashLogo { width: 64px; height: 64px; object-fit: contain; }
+@media (prefers-reduced-motion: reduce) { .ring { animation-duration: 1.6s; } }
+.row-btns { display: flex; gap: .5rem; margin-top: .6rem; }
+.cc-acts { display: flex; gap: .35rem; flex-wrap: wrap; justify-content: flex-end; }

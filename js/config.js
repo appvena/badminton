@@ -15,10 +15,11 @@ export const FIREBASE_CONFIG = {
 export const APP = {
   name: "Badminton World Federation",
   tagline: "Lapangan. Turnamen. Skor Langsung.",
+  heroTitle: "Kondisi Lapangan *Saat Ini* dari GOR",
   copyright: "© SRISP 2026",
   brand: "SRISP",
   // CATATAN RILIS: setiap update ubah versi di SINI + sw.js (V) + CHANGELOG.md.
-  version: "1.9.0",
+  version: "1.9.5",
   // Kode untuk menaikkan peran akun menjadi Pengelola (gerbang UI;
   // otorisasi sesungguhnya sebaiknya dipindah ke Custom Claims/Aturan Firestore)
   adminPin: "srisp2026",
@@ -32,6 +33,7 @@ export const APP = {
 export const SETTINGS_DEFAULTS = {
   appName: "Badminton World Federation",
   tagline: "Lapangan. Turnamen. Skor Langsung.",
+  heroTitle: "Kondisi Lapangan *Saat Ini* dari GOR",
   announcement: "",
   brandItalic: true,
   venueName: "BWF Hall",

@@ -342,6 +342,24 @@ export async function cancelBooking(id) {
 // ------------------------------------------------------------------
 // KELOLA LAPANGAN
 // ------------------------------------------------------------------
+export async function deleteCourt(id) {
+  if (state.mode === "firebase") {
+    await fb.fsDelete("courts", id);                 // realtime: hilang di semua perangkat
+    state.courts = state.courts.filter((c) => c.id !== id); emit();
+    return { ok: true };
+  }
+  const db = getDB();
+  db.courts = db.courts.filter((c) => c.id !== id);
+  db.bookings = db.bookings.filter((b) => b.courtId !== id || b.date < dateKey());
+  saveDB(db);
+  state.courts = db.courts;
+  state.bookings = db.bookings;
+  emit();
+  return { ok: true };
+}
+export const futureBookingsOf = (id) => state.bookings
+  .filter((b) => b.courtId === id && b.date >= dateKey() && b.status !== "cancelled").length;
+
 export async function addCourt(c) {
   if (state.mode === "firebase") await fb.fsAdd("courts", c);
   else { state.courts.push({ ...c, id: uid() }); persistAndEmit(); }

@@ -18,19 +18,11 @@
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <!-- Splash -->
+  <!-- Splash: ring berputar (logo upload tampil bila ada) -->
   <div id="splash" class="splash" aria-hidden="true">
     <img id="splashLogo" alt="" hidden>
-    <svg viewBox="0 0 64 64" width="64" height="64" class="shuttle" aria-hidden="true">
-      <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
-        <path d="M20 8 L32 26 L44 8"/><path d="M26 7 L32 26 L38 7"/><path d="M32 3 L32 26"/>
-      </g>
-      <circle cx="32" cy="34" r="7" fill="var(--accent)"/>
-      <path d="M8 56 C24 52 40 46 54 34" class="trail" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="3 6" stroke-linecap="round"/>
-    </svg>
-    <div class="splash-word" id="splashWord">BWF <span>Badminton World Federation</span></div>
+    <div class="ring" role="progressbar" aria-label="Memuat"></div>
     <div class="splash-ver" id="splashVer"></div>
-    <div class="splash-bar"><i></i></div>
   </div>
 
   <!-- Utility bar -->

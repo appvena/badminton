@@ -1,5 +1,40 @@
 # CHANGELOG — SRISP Badminton
 
+## v1.9.2 — 2026-11-17
+- Splash loading: **ring berputar** sederhana (logo upload tetap tampil bila ada).
+- Tab Lapangan: tombol **Ubah** — edit kode, nama, tarif/jam, jam buka–tutup,
+  fasilitas langsung dari daftar (plus Batal).
+- FIX besar rasa "harus refresh": tombol konsol mengunci fokus sehingga panel
+  menolak menggambar ulang — kini fokus dilepas saat diklik dan re-render
+  hanya ditunda bila pengguna sedang mengetik di form. Perawatan/Aktifkan,
+  Hapus, Mulai, +/- skor, ganti tim/pemain, dan tab lain kini instan.
+
+
+## v1.9.1 — 2026-11-17
+- **Hapus lapangan**: tombol 🗑 Hapus per baris di Kelola → tab Lapangan,
+  dengan konfirmasi + peringatan jumlah pesanan mendatang (Rules sudah
+  mengizinkan admin; penonaktifan tetap tersedia lewat tombol Perawatan).
+
+## v1.9.0 — 2026-11-17
+- **Tema Merah-Putih** — gradasi merah di bar info, hero turnamen, footer,
+  tombol; font **Plus Jakarta Sans**; nav header dengan animasi garis
+  gradasi & teks gradasi saat dipilih (transisi tetap ringan).
+- **Logo**: segitiga-S dihapus; merek = logo upload (auto favicon & header)
+  atau wordmark; **BWF miring (italic)** — bisa dimatikan di Pengaturan;
+  inisial/short brand dapat diisi manual.
+- **Superadmin tanpa kode**: Kelola terbuka otomatis setelah login akun
+  ber-role; tanpa PIN. (Mode demo lokal tetap memakai kode.)
+- **Mode tamu bersih**: Tim & Tanding, Riwayat, Kelola, dan tautannya di
+  footer/tabbar hanya muncul untuk akun login/pengelola.
+- **Konsol superadmin bertab**: Skor & Wasit · Lapangan · Pesanan ·
+  Pengaturan (identitas, tagline, pengumuman, gaya brand) · **Akun & Peran**
+  (naik/turunkan role pemain/admin/superadmin langsung dari aplikasi) · Logo.
+- **Wasit via QR**: tombol ▦ QR Wasit (Kelola & Tanding Saya) — perangkat
+  wasit scan → rute `#wasit/<id>/<kode>` → tersambung & konsol terbuka
+  otomatis. Admin/host dapat **mencabut wasit dengan konfirmasi kata sandi**.
+- **Chat membaik**: gelembung kiri/kanan, avatar inisial, pemisah hari
+  (Hari ini/Kemarin), chip anggota tim di atas chat.
+
 ## v1.8.1 — 2026-11-17
 - FIX gerbang Kelola: peran `superadmin` kini diterima (sebelumnya hanya
   `admin` yang lolos sehingga superadmin ditolak).

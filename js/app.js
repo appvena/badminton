@@ -164,8 +164,6 @@ function paintChrome() {
   document.querySelectorAll(".brand-small").forEach((el) => {
     if (!el.closest(".brand-big")) el.textContent = nm;
   });
-  const sw2 = $("#splashWord");
-  if (sw2) { const sp = sw2.querySelector("span"); if (sp) sp.textContent = nm; if (sw2.firstChild && sw2.firstChild.nodeType === 3) sw2.firstChild.nodeValue = ini + " "; }
   const fv = $("#footVenue"); if (fv) fv.textContent = set.venueName;
   const fa = $("#footAddr"); if (fa) fa.textContent = set.address;
   const fk = $("#footKontak");
@@ -188,17 +186,14 @@ function paintLogo() {
     if (fav) fav.href = lg;
   }
   const sp = $("#splashLogo");
-  if (sp) {
-    if (lg) { sp.src = lg; sp.hidden = false; $("#splash .shuttle")?.setAttribute("hidden", ""); }
-    else { sp.hidden = true; $("#splash .shuttle")?.removeAttribute("hidden"); }
-  }
+  if (sp && lg) { sp.src = lg; sp.hidden = false; }
 }
 
 async function boot() {
   const sv = $("#splashVer"); if (sv) sv.textContent = "v" + APP.version;
   try {  // tampilkan logo upload di splash SEBELUM server sempat merespons
     const lg0 = localStorage.getItem("srisp_logo");
-    if (lg0) { const im = $("#splashLogo"); if (im) { im.src = lg0; im.hidden = false; $("#splash .shuttle")?.setAttribute("hidden", ""); } }
+    if (lg0) { const im = $("#splashLogo"); if (im) { im.src = lg0; im.hidden = false; } }
   } catch {}
   try { initAuthUI(); } catch (e) { console.error("auth UI:", e); }
   buildMobileMenu();
