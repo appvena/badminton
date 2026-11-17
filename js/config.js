@@ -18,7 +18,7 @@ export const APP = {
   copyright: "© SRISP 2026",
   brand: "SRISP",
   // CATATAN RILIS: setiap update ubah versi di SINI + sw.js (V) + CHANGELOG.md.
-  version: "1.8.0",
+  version: "1.8.1",
   // Kode untuk menaikkan peran akun menjadi Pengelola (gerbang UI;
   // otorisasi sesungguhnya sebaiknya dipindah ke Custom Claims/Aturan Firestore)
   adminPin: "srisp2026",

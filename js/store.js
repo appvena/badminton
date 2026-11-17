@@ -678,3 +678,12 @@ export const isRefOf = (m) => {
   const me = meUid();
   return !!(me && (m.refUids || []).includes(me));
 };
+
+// Baca ulang peran dari dokumen users (dipakai saat verifikasi kode pengelola)
+export async function refreshRole() {
+  if (state.mode !== "firebase" || !state.user.uid) return;
+  try {
+    const p = await fb.fsGet("users", state.user.uid);
+    if (p) setUser({ role: p.role || "pemain", name: p.name || state.user.name, phone: p.phone || state.user.phone });
+  } catch (e) { console.warn("refreshRole:", e.code || e.message); }
+}

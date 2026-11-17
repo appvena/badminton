@@ -14,16 +14,21 @@ function pinGate(root) {
       <input id="pin" type="password" inputmode="text" placeholder="Kode pengelola" autocomplete="off">
       <button class="btn primary block">Masuk</button>
     </form>`;
-  $("#pinform").addEventListener("submit", (e) => {
+  $("#pinform").addEventListener("submit", async (e) => {
     e.preventDefault();
-    if (store.state.mode === "firebase" && store.state.user.role !== "admin") {
-      toast("Akun ini belum punya peran admin. Atur role 'admin' pada dokumen users di Firebase Console.", "error", 4200);
-      return;
+    const pin = $("#pin").value;
+    if (!store.verifyAdminPin(pin)) { toast("Kode salah.", "error"); return; }
+    if (store.state.mode === "firebase") {
+      await store.refreshRole();               // baca ulang role terbaru dari server
+      if (!store.isStaff()) {
+        toast("Peran akun ini masih '" + (store.state.user.role || "pemain") +
+          "'. Ubah field role menjadi 'superadmin' (atau 'admin') pada dokumen users di Firebase Console, lalu tekan Masuk lagi.", "error", 6000);
+        store.leaveAdmin();
+        return;
+      }
     }
-    if (store.verifyAdminPin($("#pin").value)) {
-      toast("Selamat bertugas, Pengelola.", "ok");
-      render(root);
-    } else toast("Kode salah.", "error");
+    toast(store.isSuperAdmin() ? "Selamat bertugas, Superadmin." : "Selamat bertugas, Pengelola.", "ok");
+    render(root);
   });
 }
 

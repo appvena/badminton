@@ -1,5 +1,11 @@
 # CHANGELOG — SRISP Badminton
 
+## v1.8.1 — 2026-11-17
+- FIX gerbang Kelola: peran `superadmin` kini diterima (sebelumnya hanya
+  `admin` yang lolos sehingga superadmin ditolak).
+- Role dibaca ulang dari server saat kode pengelola ditekan — ubah role di
+  Firebase Console cukup lalu tekan "Masuk" lagi, tanpa refresh halaman.
+
 ## v1.8.0 — 2026-11-17
 - **Nama pemain** (single/ganda) di kartu live, jadwal, konsol wasit, dan
   Mode Tayang — diisi lewat form tanding, konsol pengelola, atau host.
