@@ -5,7 +5,7 @@
 // ============================================================
 import { APP } from "./config.js";
 import * as store from "./store.js";
-import { $, toast, prettyDate, dateKey } from "./ui.js";
+import { $, toast, prettyDate, dateKey, esc } from "./ui.js";
 import { initAuthUI, renderAuthZone } from "./auth.js";
 import { setGo } from "./router-shim.js";
 
@@ -13,10 +13,11 @@ import * as home from "./panels/home.js";
 import * as booking from "./panels/booking.js";
 import * as courts from "./panels/courts.js";
 import * as tournament from "./panels/tournament.js";
+import * as teams from "./panels/teams.js";
 import * as history from "./panels/history.js";
 import * as admin from "./panels/admin.js";
 
-const PANELS = { home, booking, courts, tournament, history, admin };
+const PANELS = { home, booking, courts, tournament, teams, history, admin };
 let current = "home";
 let unsub = null;
 let splashHidden = false;
@@ -103,18 +104,42 @@ document.querySelector(".tabbar")?.addEventListener("click", (e) => {
   if (b) go(b.dataset.go);
 });
 $("#brandHome")?.addEventListener("click", (e) => { e.preventDefault(); go("home"); });
+$("#modeTag")?.addEventListener("click", () => go("admin"));
 
 function paintChrome() {
   const st = store.state;
   const tag = $("#modeTag");
-  if (tag) tag.textContent = st.mode === "firebase" ? "SERVER: FIRESTORE" : st.mode === "demo" ? "MODE DEMO" : "";
+  if (tag) tag.textContent = `v${APP.version}` + (st.mode === "firebase"
+    ? st.localMirror ? " · DATA CADANGAN" : " · LIVE"
+    : st.mode === "demo" ? " · MODE LOKAL" : "");
   const ob = $("#offlineBar"); if (ob) ob.hidden = st.net;
   const ud = $("#utilDate"); if (ud) ud.textContent = prettyDate(dateKey());
-  const live = store.liveMatches();
   const tk = $("#utilTicker");
-  if (tk) tk.textContent = live.length
-    ? `● LIVE · ${live[0].teamA} vs ${live[0].teamB} — SRISP Open 2026`
-    : `${APP.name} — ${APP.tagline}`;
+  if (tk) {
+    const live = store.liveMatches();
+    const set = store.settingsData();
+    tk.textContent = live.length ? `● LIVE · ${live[0].teamA} vs ${live[0].teamB}`
+      : `Buka ${set.openHours}`;
+  }
+  const set = store.settingsData();
+  const nm = set.appName || APP.name;
+  const ini = nm.split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 4);
+  document.querySelectorAll(".brand-big").forEach((el) => {
+    const em = el.querySelector(".brand-small");
+    if (em) { if (el.firstChild && el.firstChild.nodeType === 3) el.firstChild.nodeValue = ini; else el.prepend(ini); em.textContent = nm; }
+    else el.textContent = ini;
+  });
+  document.querySelectorAll(".brand-small").forEach((el) => {
+    if (!el.closest(".brand-big")) el.textContent = nm;
+  });
+  const sw2 = $("#splashWord");
+  if (sw2) { const sp = sw2.querySelector("span"); if (sp) sp.textContent = nm; if (sw2.firstChild && sw2.firstChild.nodeType === 3) sw2.firstChild.nodeValue = ini + " "; }
+  const fv = $("#footVenue"); if (fv) fv.textContent = set.venueName;
+  const fa = $("#footAddr"); if (fa) fa.textContent = set.address;
+  const fk = $("#footKontak");
+  if (fk) fk.innerHTML = (set.contactWA ? `Kontak: ${esc(set.contactWA)}` : "") +
+    (set.contactEmail ? ` · ${esc(set.contactEmail)}` : "") +
+    (set.contactWA || set.contactEmail ? "<br>" : "");
   renderAuthZone();
   paintLogo();
 }
@@ -129,9 +154,19 @@ function paintLogo() {
     top.src = lg;
     if (fav) fav.href = lg;
   }
+  const sp = $("#splashLogo");
+  if (sp) {
+    if (lg) { sp.src = lg; sp.hidden = false; $("#splash .shuttle")?.setAttribute("hidden", ""); }
+    else { sp.hidden = true; $("#splash .shuttle")?.removeAttribute("hidden"); }
+  }
 }
 
 async function boot() {
+  const sv = $("#splashVer"); if (sv) sv.textContent = "v" + APP.version;
+  try {  // tampilkan logo upload di splash SEBELUM server sempat merespons
+    const lg0 = localStorage.getItem("srisp_logo");
+    if (lg0) { const im = $("#splashLogo"); if (im) { im.src = lg0; im.hidden = false; $("#splash .shuttle")?.setAttribute("hidden", ""); } }
+  } catch {}
   try { initAuthUI(); } catch (e) { console.error("auth UI:", e); }
   buildMobileMenu();
   try {

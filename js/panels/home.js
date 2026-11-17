@@ -3,7 +3,7 @@ import * as store from "../store.js";
 import { courtStatusInfo, dateKey, hourLabel, skeleton, esc } from "../ui.js";
 import { go } from "../router-shim.js";
 
-const HERO = "/manus-storage/async-images/X1HgPzKojHyA0TKIrwkKVP/image-1.webp";
+const HERO = "/img/hero.webp";
 
 function tile(c) {
   const s = store.courtStatus(c);
@@ -13,7 +13,9 @@ function tile(c) {
     <span class="ct-code">${esc(c.code)}</span>
     <span class="ct-name">${esc(c.name)}</span>
     <span class="ct-status"><i></i>${info.label}</span>
-    <span class="ct-next">${free !== null && (s === "free" || s === "playing") ? "Kosong " + hourLabel(free) : s === "booked" ? "Sudah dipesan nanti" : s === "maint" ? "Perawatan" : s === "closed" ? "Tutup" : "—"}</span>
+    <span class="ct-next">${s === "free" ? (free !== null ? "Kosong " + hourLabel(free) : "Kosong sekarang")
+      : (s === "playing" || s === "booked") ? (free !== null ? "Penuh s/d " + hourLabel(free) : "Penuh hari ini")
+      : s === "maint" ? "Perawatan" : s === "closed" ? "Tutup" : "—"}</span>
   </button>`;
 }
 

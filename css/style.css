@@ -60,6 +60,7 @@ em { font-style: normal; }
 @keyframes dash { to { stroke-dashoffset: -18; } }
 .splash-word { font-family: var(--cond); font-weight: 700; letter-spacing: .2em; text-transform: uppercase; font-size: .95rem; }
 .splash-word span { color: var(--accent); }
+.splash-ver { font-family: var(--mono); font-size: .66rem; letter-spacing: .2em; color: rgba(255,255,255,.55); margin-top: -.5rem; }
 .splash-bar { width: 140px; height: 3px; background: rgba(255,255,255,.18); border-radius: 3px; overflow: hidden; }
 .splash-bar i { display: block; height: 100%; width: 40%; background: var(--accent); animation: roll 1s ease-in-out infinite; }
 @keyframes roll { 0% { transform: translateX(-100%);} 100% { transform: translateX(350%);} }
@@ -254,6 +255,7 @@ em { font-style: normal; }
 .slot-sum { display: flex; justify-content: space-between; margin-top: .6rem; font-size: .86rem; color: var(--ink-2); }
 .slot-sum b { font-family: var(--mono); color: var(--navy); }
 .paper-note { padding: .75rem .95rem; margin-top: .7rem; font-size: .88rem; border-left: 3px solid var(--green); border-radius: 0 8px 8px 0; background: var(--green-soft); }
+.paper-note.warn { border-left-color: var(--amber); background: #FDF6E3; }
 .form { padding: 1.1rem; margin-top: .6rem; display: grid; gap: .75rem; }
 .form h3 { font-family: var(--cond); text-transform: uppercase; letter-spacing: .06em; color: var(--navy); }
 .form label { display: grid; gap: .3rem; font-size: .74rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
@@ -485,3 +487,90 @@ em { font-style: normal; }
 }
 /* Pastikan atribut hidden selalu menang atas aturan display */
 [hidden] { display: none !important; }
+
+/* ---------- Tim & Tanding ---------- */
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .6rem; margin-top: .4rem; }
+.team-card { text-align: left; border: 1px solid var(--rule); border-radius: 8px; padding: .7rem .9rem; background: #fff; box-shadow: var(--shadow); display: grid; gap: .2rem; transition: border-color .15s, transform .15s; }
+.team-card:hover { transform: translateY(-2px); }
+.team-card b { font-family: var(--cond); font-size: 1.05rem; letter-spacing: .03em; color: var(--navy); }
+.team-card span { font-size: .76rem; color: var(--ink-2); }
+.team-card.on { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.team-card.public { border-style: dashed; }
+.code-badge { font-family: var(--mono); font-size: .72rem; background: var(--accent-soft); color: var(--accent); padding: .05rem .4rem; border-radius: 4px; }
+.join-row { display: flex; gap: .7rem; flex-wrap: wrap; margin: .9rem 0 .3rem; }
+.join-row form { display: flex; gap: .45rem; flex: 1; min-width: 240px; }
+.join-row input { flex: 1; border: 1px solid var(--rule-strong); border-radius: 6px; padding: .5rem .7rem; outline: none; }
+.join-row input:focus { border-color: var(--accent); }
+.chat-box { background: #fff; border: 1px solid var(--rule); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.msgs { max-height: 340px; overflow-y: auto; padding: .9rem 1rem; display: grid; gap: .55rem; align-content: start; background: var(--section); }
+.msg { max-width: 78%; justify-self: start; background: #fff; border: 1px solid var(--rule); border-radius: 4px 10px 10px 10px; padding: .45rem .7rem; animation: panel-in .18s ease; }
+.msg.me { justify-self: end; border-radius: 10px 4px 10px 10px; background: var(--navy); color: #fff; border-color: var(--navy); }
+.msg-who { display: block; font-size: .64rem; letter-spacing: .06em; opacity: .7; margin-bottom: .15rem; }
+.msg p { font-size: .86rem; line-height: 1.35; word-break: break-word; }
+.chat-send { display: flex; gap: .5rem; padding: .6rem .7rem; border-top: 1px solid var(--rule); background: #fff; }
+.chat-send input { flex: 1; border: 1px solid var(--rule-strong); border-radius: 6px; padding: .5rem .7rem; outline: none; }
+.chat-send input:focus { border-color: var(--accent); }
+.form select, .join-row select { width: 100%; border: 1px solid var(--rule-strong); border-radius: 6px; background: #fff; padding: .5rem .6rem; outline: none; font: inherit; }
+.form select:focus { border-color: var(--accent); }
+.score-sheet.private { border-top: 3px solid var(--navy); }
+
+/* ---------- Konsol Wasit (fullscreen) ---------- */
+.ref-open { overflow: hidden; }
+.ref { position: fixed; inset: 0; z-index: 160; background: radial-gradient(120% 130% at 50% 0%, #14335c 0%, var(--navy) 55%, #071a30 100%); color: #fff; display: grid; grid-template-rows: auto 1fr auto; user-select: none; }
+.ref:fullscreen { display: grid; }
+.ref-head { display: flex; align-items: center; gap: .8rem; padding: .8rem 1.1rem; border-bottom: 2px solid var(--accent); }
+.ref-meta { font-family: var(--cond); font-size: 1.05rem; letter-spacing: .04em; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ref-head .tag { font-size: .68rem; letter-spacing: .12em; color: #ffdf6b; background: rgba(255,223,107,.12); border: 1px solid rgba(255,223,107,.4); padding: .15rem .5rem; border-radius: 4px; }
+.ref-head .tag.st-done { color: #9fe6a0; background: rgba(159,230,160,.1); border-color: rgba(159,230,160,.35); }
+.ref-tools { display: flex; gap: .45rem; }
+.ref-tools button { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 6px; padding: .4rem .7rem; font-size: .78rem; letter-spacing: .05em; }
+.ref-tools button:hover { background: rgba(255,255,255,.16); }
+.ref-tools .x { border-color: var(--accent); color: #ffb3b6; }
+.ref-body { display: grid; grid-template-columns: 1fr minmax(120px, 210px) 1fr; }
+.ref-side { position: relative; display: grid; align-content: center; justify-items: center; gap: .4rem; padding: 1rem; cursor: pointer; border-right: 1px solid rgba(255,255,255,.14); transition: background .12s; }
+.ref-side:last-of-type { border-right: 0; }
+.ref-side:active { background: rgba(255,255,255,.07); }
+.ref-side h2 { font-family: var(--cond); font-size: clamp(1rem, 2.6vw, 1.7rem); letter-spacing: .05em; text-transform: uppercase; text-align: center; }
+.ref-score { font-family: var(--mono); font-weight: 700; font-size: clamp(4.5rem, 17vw, 11rem); line-height: 1; letter-spacing: -.02em; text-shadow: 0 6px 40px rgba(0,0,0,.4); }
+.ref-score.bump { animation: bump .28s ease; }
+@keyframes bump { 0% { transform: scale(1.16); color: #ffdf6b; } 100% { transform: scale(1); } }
+.ref-flag { min-height: 1.3em; font-family: var(--cond); font-size: .95rem; letter-spacing: .22em; color: var(--accent); }
+.ref-serve { position: absolute; top: .8rem; font-size: .72rem; letter-spacing: .18em; color: #ffdf6b; }
+.ref-minus { position: absolute; bottom: .9rem; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.25); color: #fff; width: 44px; height: 44px; border-radius: 50%; font-size: 1.1rem; }
+.ref-center { display: grid; align-content: center; justify-items: center; gap: .7rem; padding: 1rem; background: rgba(0,0,0,.22); text-align: center; }
+#refGame { font-family: var(--cond); font-size: clamp(.85rem,1.6vw,1.15rem); letter-spacing: .18em; color: #ffdf6b; text-align: center; }
+.ref-dots { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: center; }
+.ref-dots b { font-family: var(--mono); font-size: .8rem; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2); border-radius: 4px; padding: .15rem .45rem; font-weight: 400; }
+.ref-center p { font-size: .66rem; letter-spacing: .12em; opacity: .55; text-transform: uppercase; }
+.ref-body.ended { opacity: .92; }
+.ref-hint { padding: .5rem; text-align: center; font-size: .68rem; letter-spacing: .1em; opacity: .5; text-transform: uppercase; }
+.cs-ref { margin: .1rem 0 .55rem; }
+#splashLogo { width: 74px; height: 74px; object-fit: contain; border-radius: 10px; background: #fff; padding: .35rem; margin-bottom: .8rem; }
+/* Pop halus saat skor penonton terupdate realtime */
+.ss-team b { animation: popin .3s ease; }
+@keyframes popin { 0% { transform: scale(1.25); color: var(--accent); } 100% { transform: scale(1); } }
+
+/* ---------- Mode Tayang & kode wasit ---------- */
+.tour-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .8rem; }
+.tour-actions .btn { background: rgba(255,255,255,.92); }
+.ref-code { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; font-size: .8rem; margin: .1rem 0 .55rem; }
+.show-mode .ref-side { cursor: default; }
+.show-mode .ref-side:active { background: transparent; }
+
+/* ---------- v1.8: LED, pemain, laporan ---------- */
+.led { display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; background: #e8352e; margin-right: .35rem; animation: led 1.1s ease-in-out infinite; }
+.led-light { background: #ffd23e; }
+@keyframes led { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(232,53,46,.55); } 50% { opacity: .25; box-shadow: 0 0 0 .3rem rgba(232,53,46,0); } }
+.blink { animation: blink 1.3s steps(2, start) infinite; }
+@keyframes blink { 50% { opacity: .45; } }
+.ss-players { display: flex; align-items: center; gap: .5rem; font-size: .78rem; color: var(--ink-2); margin: -.2rem 0 .4rem; }
+.ss-players i { font-style: normal; color: var(--accent); }
+.ss-players span { font-weight: 600; color: var(--ink); }
+.mr-teams em { display: block; font-size: .68rem; color: var(--ink-2); font-style: normal; letter-spacing: .04em; }
+.ss-lead { margin-left: auto; }
+.btn.lead { font-size: .68rem; padding: .22rem .55rem; }
+.tour-note { align-self: center; font-size: .74rem; letter-spacing: .04em; opacity: .8; }
+.ref-players { font-size: clamp(.72rem, 1.6vw, 1.05rem); letter-spacing: .08em; color: #ffdf6b; min-height: 1.2em; text-transform: uppercase; }
+.rep-modal { max-width: 720px; width: min(92vw, 720px); padding: 0; overflow: hidden; display: grid; grid-template-rows: auto 1fr; }
+.rep-tools { display: flex; gap: .5rem; justify-content: flex-end; padding: .6rem .7rem; border-bottom: 1px solid var(--rule); background: #fff; }
+.rep-frame { width: 100%; height: 62vh; border: 0; background: #f2f4f8; }

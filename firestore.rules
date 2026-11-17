@@ -10,27 +10,72 @@ service cloud.firestore {
       return signedIn() && (role() == 'admin' || role() == 'superadmin');
     }
     function isSuperAdmin() { return signedIn() && role() == 'superadmin'; }
+    function memberOf(tid) {
+      return signedIn() && request.auth.uid in
+        get(/databases/$(database)/documents/teams/$(tid)).data.memberUids;
+    }
 
-    // ---- Lapangan: publik lihat, admin kelola ----
+    // ---- Lapangan / turnamen / pertandingan terjadwal ----
     match /courts/{courtId} {
       allow read: if true;
       allow write: if isAdmin();
     }
-
-    // ---- Turnamen & pertandingan ----
     match /tournaments/{tId} {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // Pertandingan: publik bisa melihat; admin penuh; pembuat tanding
+    // mandiri (hostUid) mengelola pertandingan & skornya sendiri.
     match /matches/{mId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create: if isAdmin() || (signedIn() &&
+        request.resource.data.scope == 'private' &&
+        request.resource.data.hostUid == request.auth.uid);
+      // Admin penuh; host penuh; wasit yang terdaftar di refUids boleh
+      // menulis skor; siapa pun (terautentikasi) boleh MENAMBAH dirinya
+      // ke refUids — kunci keberhasilan ada pada kode wasit yang dirahasiakan.
+      allow update: if isAdmin() ||
+        (signedIn() && resource.data.hostUid == request.auth.uid) ||
+        (signedIn() && resource.data.refUids is list &&
+          request.auth.uid in resource.data.refUids) ||
+        (signedIn() && resource.data.refUids is list &&
+          request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['refUids']) &&
+          request.resource.data.refUids.hasAll(resource.data.refUids)) ||
+        // wasit mencabut dirinya sendiri (hanya mengurangi uid sendiri)
+        (signedIn() && resource.data.refUids is list &&
+          resource.data.refUids.removeAll([request.auth.uid])
+            == request.resource.data.refUids);
+      allow delete: if isAdmin();
     }
 
-    // ---- Pengaturan aplikasi (logo dll.): superadmin ----
+    // ---- Pengaturan aplikasi: hanya superadmin ----
     match /settings/{docId} {
       allow read: if true;
       allow write: if isSuperAdmin();
+    }
+
+    // ---- Tim ----
+    match /teams/{teamId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.ownerUid == request.auth.uid &&
+        request.resource.data.memberUids.hasAll([request.auth.uid]);
+      // Pemilik bebas; anggota lain hanya boleh MENAMBAH dirinya (join by code)
+      allow update: if isAdmin() || resource.data.ownerUid == request.auth.uid ||
+        (signedIn() && request.resource.data.diff(resource.data)
+            .affectedKeys().hasOnly(['memberUids', 'members']) &&
+         request.resource.data.memberUids.hasAll(resource.data.memberUids));
+      allow delete: if isAdmin() || resource.data.ownerUid == request.auth.uid;
+    }
+
+    // ---- Chat tim: hanya anggota tim terkait ----
+    match /messages/{msgId} {
+      allow read: if isAdmin() || memberOf(resource.data.teamId);
+      allow create: if memberOf(request.resource.data.teamId) &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.text.size() <= 500;
+      allow update, delete: if false;
     }
 
     // ---- Pemesanan ----
@@ -54,7 +99,7 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // ---- Pengguna ----
+    // ---- Pengguna: peran hanya diubah admin ----
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
       allow create: if signedIn() && request.auth.uid == uid

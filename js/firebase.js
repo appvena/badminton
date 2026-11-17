@@ -75,6 +75,16 @@ export function fsSubscribe(coll, onChange) {
   }, (err) => console.warn("onSnapshot:", coll, err.code || err.message));
 }
 
+// onSnapshot dengan filter where (dipakai chat per tim)
+export function fsSubscribeQ(coll, filters, onChange) {
+  const { collection, query, where, onSnapshot, orderBy, limit } = _mod;
+  const parts = [collection(_db, coll)];
+  for (const [f, op, v] of filters) parts.push(where(f, op, v));
+  return onSnapshot(query(...parts, orderBy("at", "asc"), limit(300)),
+    (snap) => onChange(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+    (err) => console.warn("onSnapshotQ:", coll, err.code || err.message));
+}
+
 export function currentUid() {
   return _auth?.currentUser?.uid || null;
 }

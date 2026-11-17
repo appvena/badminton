@@ -3,7 +3,7 @@ import * as store from "../store.js";
 import { courtStatusInfo, hourLabel, rupiah, esc } from "../ui.js";
 import { go } from "../router-shim.js";
 
-const COURTS_IMG = "/manus-storage/async-images/X1HgPzKojHyA0TKIrwkKVP/image-2.webp";
+const COURTS_IMG = "/img/courts.webp";
 
 export function render(root) {
   const st = store.state;
@@ -11,7 +11,7 @@ export function render(root) {
   root.innerHTML = `
     <figure class="court-banner">
       <img src="${COURTS_IMG}" alt="Gor SRISP dari atas" decoding="async">
-      <figcaption><b>Gor SRISP</b> — ${st.courts.length} lapangan bersertifikat. Rincian tarif, fasilitas dan jam operasional di bawah; status diperbarui otomatis sesuai pesanan.</figcaption>
+      <figcaption><b>${esc(store.settingsData().venueName)}</b> — ${st.courts.length} lapangan · buka ${esc(store.settingsData().openHours)}. Rincian tarif & fasilitas di bawah; status diperbarui otomatis sesuai pesanan.</figcaption>
     </figure>
     <h2 class="sec top">Daftar Lapangan</h2>
     <div class="court-cards">

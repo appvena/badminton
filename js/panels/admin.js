@@ -3,6 +3,7 @@ import * as store from "../store.js";
 import { APP } from "../config.js";
 import { $, toast, prettyDate, dateKey, hourLabel, rupiah, esc, confirmDialog } from "../ui.js";
 import { courtName } from "../ui-helpers.js";
+import { openReferee } from "../referee.js";
 
 function pinGate(root) {
   root.innerHTML = `
@@ -39,9 +40,15 @@ function scoreConsole(sel) {
     <div class="console">
       <div class="cs-head">${store.matchLabel(m)} · ${esc(m.time || "—")} · ${esc(courtName(m.courtId))}
         <span class="tag st-${m.status}">${m.status === "live" ? "LIVE" : m.status === "done" ? "SELESAI" : "JADWAL"}</span></div>
+      <div class="cs-ref">
+        <button class="btn ghost sm" data-ref="${m.id}">⛶ Mode Wasit — layar skor penuh</button>
+        <button class="btn ghost sm" data-refcode="${m.id}">${m.refCode ? "🎮 Kode " + esc(m.refCode) + " — salin" : "🎮 Buat Kode Wasit"}</button>
+        ${(m.refUids || []).length ? `<span class="muted">wasit aktif: ${(m.refUids || []).length}</span>` : ""}
+      </div>
       <div class="cs-grid">
         ${["A", "B"].map((side) => `<div class="cs-team">
             <input class="cs-name" data-team="${side}" value="${esc(m[`team${side}`] || "")}" placeholder="Tim ${side}">
+            <input class="cs-players" data-pl="${side}" value="${esc((m[`players${side}`] || []).join(", "))}" placeholder="pemain — pisahkan koma (single/ganda)" maxlength="60">
             <div class="cs-score"><b>${m[side === "A" ? "curA" : "curB"] ?? 0}</b>
               <div class="cs-btns">
                 <button data-pt="-1" data-side="${side}">−</button>
@@ -96,6 +103,7 @@ function courtsForm() {
 
 export function render(root) {
   if (!store.state.ready) { root.innerHTML = `<div class="skeleton-group"><div class="sk-line"></div><div class="sk-line" style="width:70%"></div></div>`; return; }
+  const s = store.settingsData();
   if (!store.isAdmin()) return pinGate(root);
 
   root.innerHTML = `
@@ -107,6 +115,18 @@ export function render(root) {
     <div id="consoleBox">${scoreConsole(adminSel)}</div>
     <h2 class="sec">Pemesanan Mendatang</h2>
     <div class="tb-list" id="bookBox">${todayBookings()}</div>
+    ${(store.state.mode === "demo" || store.isSuperAdmin()) ? `
+    <h2 class="sec">Pengaturan Aplikasi</h2>
+    <form id="setform" class="form">
+      <div class="frow"><label>Nama Aplikasi<span><input name="appName" value="${esc(s.appName)}" maxlength="40"></span></label>
+        <label>Nama Venue<span><input name="venueName" value="${esc(s.venueName)}" maxlength="40"></span></label></div>
+      <div class="frow"><label>Jam Operasional<span><input name="openHours" value="${esc(s.openHours)}" maxlength="40"></span></label><span></span></div>
+      <label>Alamat<span><input name="address" value="${esc(s.address)}" maxlength="80"></span></label>
+      <div class="frow"><label>Kontak WA/Telepon<span><input name="contactWA" value="${esc(s.contactWA)}" maxlength="24"></span></label>
+        <label>Email<span><input name="contactEmail" value="${esc(s.contactEmail)}" maxlength="40"></span></label></div>
+      <button class="btn primary" type="submit">Simpan Pengaturan</button>
+      <p class="muted hint-sim">Berlaku realtime di footer, bar info, dan halaman Lapangan untuk semua pengunjung. Nama lapangan diubah lewat bagian Data Lapangan di bawah.</p>
+    </form>` : ""}
     <h2 class="sec">Data Lapangan</h2>
     <div class="tb-list" id="courtsBox">${courtsForm()}</div>
     ${(store.state.mode === "demo" || store.isSuperAdmin()) ? `
@@ -136,7 +156,11 @@ export function render(root) {
       await store.setLogo(dataURL);
       toast("Logo tersimpan dan langsung tampil di semua perangkat.", "ok");
       render(root);
-    } catch (e) { toast(e.message || "Gagal memproses gambar.", "error"); }
+    } catch (e) {
+      if (e.code === "permission-denied")
+        toast("Hanya akun superadmin (role: superadmin) yang dapat menyimpan logo.", "error", 4200);
+      else toast(e.message || "Gagal memproses gambar.", "error");
+    }
   });
   root.querySelector("#logoClear")?.addEventListener("click", async () => {
     await store.setLogo("");
@@ -145,6 +169,17 @@ export function render(root) {
   });
 
   $("#logout").onclick = async () => { await store.leaveAdmin(); render(root); };
+  $("#setform")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const f = new FormData(e.target);
+    try {
+      await store.saveAppSettings(Object.fromEntries(f.entries()));
+      toast("Pengaturan tersimpan & langsung tampil di seluruh aplikasi.", "ok");
+    } catch (err) {
+      toast(err.code === "permission-denied"
+        ? "Hanya superadmin yang dapat mengubah pengaturan." : "Gagal menyimpan: " + (err.code || err.message), "error");
+    }
+  });
 
   // Satu delegasi klik untuk seluruh panel: tahan terhadap update realtime
   if (!root.dataset.bound) {
@@ -155,6 +190,16 @@ export function render(root) {
       const m = () => store.state.matches.find((x) => x.id === adminSel)
         || store.state.matches.find((x) => x.status === "live") || store.state.matches[0];
       if (b.dataset.msel) { adminSel = b.dataset.msel; $("#consoleBox", root).innerHTML = scoreConsole(adminSel); return; }
+      if (b.dataset.ref) { openReferee(store.state.matches.find((x) => x.id === b.dataset.ref)); return; }
+      if (b.dataset.refcode) {
+        const mm = m(); if (!mm) return;
+        const code = await store.ensureRefCode(mm);
+        try {
+          await navigator.clipboard.writeText(code);
+          toast("Kode wasit " + code + " disalin — bagikan; tombol 🎮 muncul di kartu pertandingan.", "ok", 4800);
+        } catch { toast("Kode wasit: " + code, "ok", 4800); }
+        return;
+      }
       if (b.dataset.pt) { const mm = m(); if (mm) await store.pointMatch(mm, b.dataset.side, Number(b.dataset.pt)); return; }
       if (b.dataset.gim) { const mm = m(); if (mm) await store.winGame(mm, b.dataset.gim); return; }
       if (b.dataset.start) {
@@ -180,7 +225,18 @@ export function render(root) {
         }
       }
     });
-    root.addEventListener("change", (e) => {
+    root.addEventListener("change", async (e) => {
+      const pl = e.target.closest("[data-pl]");
+      if (pl) {
+        const mm = store.state.matches.find((x) => x.id === adminSel)
+          || store.state.matches.find((x) => x.status === "live") || store.state.matches[0];
+        if (mm) {
+          const side = pl.dataset.pl;
+          const arr = pl.value.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 4);
+          await store.updateMatchPublic(mm.id, { [`players${side}`]: arr });
+        }
+        return;
+      }
       const t = e.target.closest("[data-team]");
       const mm = store.state.matches.find((x) => x.id === adminSel)
         || store.state.matches.find((x) => x.status === "live") || store.state.matches[0];

@@ -5,18 +5,22 @@
 //                 tetap dapat dilihat tanpa proyek Firebase.
 // ============================================================
 import { APP } from "./config.js";
+import { SETTINGS_DEFAULTS } from "./config.js";
 import * as fb from "./firebase.js";
 import { dateKey, pad2 } from "./ui.js";
 
 const LS_DB = "srisp_db_v1";
 const LS_USER = "srisp_user_v1";
+const LS_LOGO = "srisp_logo";
 
 export const state = {
   mode: "boot",           // boot | demo | firebase
   courts: [], bookings: [], tournaments: [], matches: [], settings: [],
+  teams: [], chat: [], _chatUnsub: null, _chatTeam: "",
   user: loadJSON(LS_USER, { name: "", phone: "", admin: false, uid: "" }),
   net: navigator.onLine,
   ready: false,
+  localMirror: false,   // true = memakai cadangan lokal krn server belum berisi data
 };
 
 const listeners = new Set();
@@ -72,16 +76,39 @@ function seed() {
   // final
   matches.push(g(3, 0, "", "", { status: "scheduled", time: "19.00", courtId: "c1" }));
   const tournaments = [{
-    id: t1, name: "SRISP Open 2026", startDate: today,
+    id: t1, name: "BWF Open 2026", startDate: today,
     endDate: dateKey(new Date(Date.now() + 2 * 864e5)),
-    format: "Tunggal Putra — Sistem Bagan (8 Besar)", status: "live", venue: "Gor SRISP",
+    format: "Tunggal Putra — Sistem Bagan (8 Besar)", status: "live", venue: "BWF Hall",
   }];
   return { courts, bookings, tournaments, matches };
+}
+
+// Bila 3,5 dtk setelah init server masih belum mengirim data (rules belum
+// publish / DB belum dibuat / koneksi lambat), tampilkan salinan lokal agar
+// aplikasi tetap dapat dicoba. Tulis tetap ke server — gagal = pesan jelas.
+function applyFallbackData() {
+  if (state.mode !== "firebase" || state.courts.length) return;
+  const s = seed();
+  state.courts = s.courts; state.bookings = s.bookings;
+  state.tournaments = s.tournaments; state.matches = s.matches;
+  state.localMirror = true; emit();
 }
 
 function getDB() {
   let db = loadJSON(LS_DB, null);
   if (!db || !db.courts) { db = seed(); saveDB(db); }
+  if ((db.tournaments || [])[0]?.name === "SRISP Open 2026") {
+    db.tournaments[0].name = "BWF Open 2026"; db.tournaments[0].venue = "BWF Hall";
+  }
+  if (!db.teams) {
+    db.teams = [{ id: "tm1", name: "PB Rajawali Muda", code: "SRISP1",
+      ownerUid: "demo", ownerName: "Anda", createdAt: Date.now(),
+      memberUids: ["demo"], members: [{ uid: "demo", name: "Anda", role: "Pemilik" }] }];
+    db.messages = { tm1: [{ id: "msg1", teamId: "tm1", uid: "demo", name: "Anda",
+      text: "Besok latihan jam 16.00 di Lapangan B ya!", at: Date.now() - 3600e3 }] };
+    db.settings = {};
+    saveDB(db);
+  }
   return db;
 }
 
@@ -97,12 +124,20 @@ export async function init() {
   ]).catch(() => false);
   if (ok === true) {
     state.mode = "firebase";
-    const bind = (coll, key) => fb.fsSubscribe(coll, (rows) => { state[key] = rows; emit(); });
+    const bind = (coll, key) => fb.fsSubscribe(coll, (rows) => {
+      // Snapshot kosong tidak boleh menghapus data cadangan lokal; begitu
+      // server benar-benar berisi, data server mengambil alih.
+      if (key !== "settings" && !rows.length && state.localMirror) return;
+      if (rows.length && key !== "settings") state.localMirror = false;
+      state[key] = rows; emit();
+    });
     bind("courts", "courts"); bind("bookings", "bookings");
     bind("tournaments", "tournaments"); bind("matches", "matches");
+    bind("teams", "teams");
     bind("settings", "settings");
     state.ready = true; emit();
     try { await seedIfEmpty(); } catch (e) { console.warn("seed awal:", e.code || e.message); }
+    setTimeout(applyFallbackData, 3500);
   } else {
     state.mode = "demo";
     hydrateDemo();
@@ -159,16 +194,22 @@ export const isSuperAdmin = () => state.user.role === "superadmin";
 export function logoData() {
   if (state.mode === "firebase") {
     const s = state.settings.find((x) => x.id === "app");
-    return (s && s.logo) || "";
+    if (s) {
+      const lg = s.logo || "";
+      lg ? localStorage.setItem(LS_LOGO, lg) : localStorage.removeItem(LS_LOGO);
+      return lg;
+    }
+    return localStorage.getItem(LS_LOGO) || "";  // mirror — splash tampil cepat
   }
-  return localStorage.getItem("srisp_logo") || "";
+  return localStorage.getItem(LS_LOGO) || "";
 }
 
 export async function setLogo(dataURL) {
-  if (state.mode === "firebase")
+  if (state.mode === "firebase") {
     await fb.fsSet("settings", "app", { logo: dataURL || "", updatedAt: Date.now() });
-  else if (dataURL) localStorage.setItem("srisp_logo", dataURL);
-  else localStorage.removeItem("srisp_logo");
+    dataURL ? localStorage.setItem(LS_LOGO, dataURL) : localStorage.removeItem(LS_LOGO);
+  } else if (dataURL) localStorage.setItem(LS_LOGO, dataURL);
+  else localStorage.removeItem(LS_LOGO);
   emit();
 }
 
@@ -202,6 +243,7 @@ function hydrateDemo() {
   const db = getDB();
   state.courts = db.courts; state.bookings = db.bookings;
   state.tournaments = db.tournaments; state.matches = db.matches;
+  state.teams = db.teams;
 }
 
 function persistAndEmit() {
@@ -257,9 +299,11 @@ export async function addBooking(b) {
 
   const clash = (x) => x.courtId === b.courtId && x.date === b.date && x.status !== "cancelled" && x.startHour < b.end && x.endHour > b.start;
   let conflicts;
-  if (state.mode === "firebase") {
-    const rows = await fb.fsQuery("bookings", [["courtId", "==", b.courtId], ["date", "==", b.date]]);
-    conflicts = rows.filter(clash);
+  if (state.mode === "firebase" && !state.localMirror) {
+    try {
+      const rows = await fb.fsQuery("bookings", [["courtId", "==", b.courtId], ["date", "==", b.date]]);
+      conflicts = rows.filter(clash);
+    } catch (e) { conflicts = state.bookings.filter(clash); }
   } else {
     conflicts = state.bookings.filter(clash);
   }
@@ -269,7 +313,13 @@ export async function addBooking(b) {
   const doc = { courtId: b.courtId, date: b.date, startHour: b.start, endHour: b.end, name: b.name, phone: b.phone, note: b.note || "", status: "active", createdAt: Date.now() };
   if (state.mode === "firebase") {
     if (state.user.uid) doc.ownerId = state.user.uid;
-    await fb.fsAdd("bookings", doc);
+    try {
+      await fb.fsAdd("bookings", doc);
+    } catch (e) {
+      return { ok: false, error: e.code === "permission-denied"
+        ? "Server belum menerima tulisan: Rules Firestore belum dipublikasikan / database belum dibuat. Selesaikan pengaturan Console lalu pesan ulang."
+        : "Gagal menyimpan pesanan (" + (e.code || e.message) + ")." };
+    }
   }
   else { doc.id = uid(); state.bookings.push(doc); }
   state.user.name = b.name; state.user.phone = b.phone;
@@ -351,6 +401,8 @@ async function advance(m, winner) {
   await updateMatch(next, { [side]: teams[0], status: next.teamA && next.teamB ? next.status : next.status });
 }
 
+export function advanceWinner(m, winner) { return advance(m, winner); }
+
 export async function editTeam(m, side, name) {
   await updateMatch(m, { [`team${side}`]: name });
 }
@@ -415,3 +467,214 @@ function startSimulator() {
     if (changed) persistAndEmit();
   }, 9000);
 }
+
+// ------------------------------------------------------------------
+// PENGATURAN APLIKASI (superadmin) — nama venue, alamat, kontak
+// ------------------------------------------------------------------
+export function settingsData() {
+  let extra = {};
+  if (state.mode === "firebase") {
+    const s = state.settings.find((x) => x.id === "app");
+    if (s) extra = s;
+  } else extra = getDB().settings || {};
+  return { ...SETTINGS_DEFAULTS, ...extra };
+}
+
+export async function saveAppSettings(patch) {
+  if (state.mode === "firebase") {
+    await fb.fsSet("settings", "app", { ...patch, updatedAt: Date.now() });
+  } else {
+    const db = getDB();
+    db.settings = { ...(db.settings || {}), ...patch };
+    saveDB(db);
+  }
+  emit();
+}
+
+// ------------------------------------------------------------------
+// TIM — satu pengguna terdaftar bisa punya/masuk banyak tim
+// ------------------------------------------------------------------
+const meUid = () => state.user.uid || (state.mode === "demo" ? "demo" : "");
+
+function requireAccount() {
+  if (state.mode !== "firebase") return null;             // demo selalu boleh
+  if (!state.user.uid || state.user.guest || !state.user.email)
+    return "Fitur tim membutuhkan akun terdaftar — silakan Masuk/Daftar.";
+  return null;
+}
+
+export function myTeams() {
+  const me = meUid();
+  return state.teams.filter((t) => (t.memberUids || []).includes(me));
+}
+export function teamById(id) { return state.teams.find((t) => t.id === id) || null; }
+
+export async function createTeam(name) {
+  const err = requireAccount(); if (err) return { ok: false, error: err };
+  name = String(name || "").trim();
+  if (name.length < 3) return { ok: false, error: "Nama tim minimal 3 karakter." };
+  const me = meUid();
+  const code = Math.random().toString(36).slice(2, 7).toUpperCase();
+  const mem = { uid: me, name: state.user.name || state.user.email || "Pemilik", role: "Pemilik" };
+  if (state.mode === "firebase") {
+    try { await fb.fsAdd("teams", { name, code, ownerUid: me, ownerName: mem.name, memberUids: [me], members: [mem], createdAt: Date.now() }); }
+    catch (e) { return { ok: false, error: "Gagal menyimpan tim (" + (e.code || e.message) + ")." }; }
+  } else {
+    const db = getDB();
+    db.teams.push({ id: uid(), name, code, ownerUid: me, ownerName: mem.name, memberUids: [me], members: [mem], createdAt: Date.now() });
+    saveDB(db); state.teams = db.teams;
+  }
+  emit();
+  return { ok: true, code };
+}
+
+export async function joinTeam(code) {
+  const err = requireAccount(); if (err) return { ok: false, error: err };
+  code = String(code || "").trim().toUpperCase();
+  const t = state.teams.find((x) => (x.code || "").toUpperCase() === code);
+  if (!t) return { ok: false, error: "Kode tim tidak ditemukan." };
+  const me = meUid();
+  if ((t.memberUids || []).includes(me)) return { ok: false, error: "Anda sudah menjadi anggota tim itu." };
+  const mem = { uid: me, name: state.user.name || state.user.email || "Anggota", role: "Anggota" };
+  const memberUids = [...(t.memberUids || []), me];
+  const members = [...(t.members || []), mem];
+  if (state.mode === "firebase") {
+    try { await fb.fsUpdate("teams", t.id, { memberUids, members }); }
+    catch (e) { return { ok: false, error: "Gagal bergabung (" + (e.code || e.message) + ")." }; }
+  } else {
+    const db = getDB();
+    const x = db.teams.find((y) => y.id === t.id);
+    x.memberUids = memberUids; x.members = members;
+    saveDB(db); state.teams = db.teams;
+  }
+  emit();
+  return { ok: true, name: t.name };
+}
+
+// ------------------------------------------------------------------
+// CHAT antar anggota tim
+// ------------------------------------------------------------------
+export function openChat(teamId) {
+  closeChat();
+  state._chatTeam = teamId;
+  if (state.mode === "firebase" && teamId) {
+    state.chat = [];
+    state._chatUnsub = fb.fsSubscribeQ("messages", [["teamId", "==", teamId]], (rows) => {
+      state.chat = rows; emit();
+    });
+  } else if (teamId) {
+    state.chat = ((getDB().messages || {})[teamId] || []).slice().sort((a, b) => a.at - b.at);
+    emit();
+  }
+}
+export function closeChat() {
+  if (state._chatUnsub) { state._chatUnsub(); state._chatUnsub = null; }
+  state._chatTeam = ""; state.chat = [];
+}
+
+export async function sendChat(teamId, text) {
+  text = String(text || "").trim();
+  if (!text) return { ok: false };
+  const err = requireAccount(); if (err) return { ok: false, error: err };
+  const msg = { teamId, uid: meUid(), name: state.user.name || state.user.email || "Anggota", text, at: Date.now() };
+  if (state.mode === "firebase") {
+    try { await fb.fsAdd("messages", msg); }
+    catch (e) { return { ok: false, error: "Pesan gagal dikirim (" + (e.code || e.message) + ")." }; }
+  } else {
+    const db = getDB();
+    db.messages = db.messages || {};
+    (db.messages[teamId] = db.messages[teamId] || []).push({ id: uid(), ...msg });
+    saveDB(db);
+    if (state._chatTeam === teamId) openChat(teamId);
+  }
+  return { ok: true };
+}
+
+// ------------------------------------------------------------------
+// TANDING MANDIRI antar tim (dikelola pembuatnya, publik bisa melihat)
+// ------------------------------------------------------------------
+export async function createPrivateMatch(v) {
+  const err = requireAccount(); if (err) return { ok: false, error: err };
+  if (!v.teamA?.trim() || !v.teamB?.trim()) return { ok: false, error: "Nama kedua tim wajib diisi." };
+  if (v.start == null) return { ok: false, error: "Pilih jam tanding." };
+  const doc = {
+    scope: "private", hostUid: meUid(),
+    refCode: Math.random().toString(36).slice(2, 7).toUpperCase(), refUids: [], hostName: state.user.name || state.user.email || "Tuan rumah",
+    teamA: v.teamA.trim(), teamB: v.teamB.trim(),
+    playersA: v.playersA || [], playersB: v.playersB || [], courtId: v.courtId || "",
+    date: v.date, startHour: v.start, endHour: (v.start + (v.hours || 1)), time: pad2(v.start) + ".00",
+    format: v.format || "Gim 21 — best of 3", status: "scheduled",
+    games: [], curA: 0, curB: 0, winner: "", round: 0, slot: Date.now() % 100000,
+  };
+  if (state.mode === "firebase") {
+    try { await fb.fsAdd("matches", doc); }
+    catch (e) { return { ok: false, error: "Gagal membuat tanding (" + (e.code || e.message) + ")." }; }
+  } else {
+    doc.id = uid();
+    state.matches.push(doc);
+    if (state.mode === "demo") persistAndEmit(); else { const db = getDB(); db.matches = state.matches; saveDB(db); }
+  }
+  emit();
+  return { ok: true };
+}
+
+export function communityMatches(showPast = false) {
+  const now = Date.now();
+  return state.matches
+    .filter((m) => m.scope === "private")
+    .filter((m) => showPast || m.status !== "done" || (m.endTs || 0) > now - 24 * 3600e3)
+    .sort((a, b) => (b.slot || 0) - (a.slot || 0));
+}
+
+export function myHostedMatches() {
+  const me = meUid();
+  return communityMatches(true).filter((m) => m.hostUid === me);
+}
+
+// ---- Klaim WASIT lewat kode (sinkron dengan uid penebak kode) ----
+export async function claimReferee(m, code) {
+  const err = requireAccount();
+  if (err) return { ok: false, error: err + " (wasit perlu akun agar skornya tercatat atas namanya)" };
+  if (!m) return { ok: false, error: "Pertandingan tidak ditemukan." };
+  code = String(code || "").trim().toUpperCase();
+  if (!m.refCode || m.refCode !== code) return { ok: false, error: "Kode wasit tidak cocok." };
+  const me = meUid();
+  if ((m.refUids || []).includes(me)) return { ok: true, m };
+  try {
+    await updateMatch(m, { refUids: [...(m.refUids || []), me] });
+    return { ok: true, m };
+  } catch (e) {
+    return { ok: false, error: "Gagal masuk sebagai wasit: " + (e.code || e.message) +
+      " (publikasikan rules terbaru)" };
+  }
+}
+export function findMatchByRefCode(code) {
+  code = String(code || "").trim().toUpperCase();
+  if (code.length < 4) return null;
+  const hits = state.matches.filter((m) => m.refCode === code);
+  if (!hits.length) return null;
+  return hits.find((m) => m.status === "live") || hits.find((m) => m.status === "scheduled") || hits[0];
+}
+
+// Buat/ambil kode wasit suatu pertandingan (dipakai pengelola)
+export async function ensureRefCode(m) {
+  if (m.refCode) return m.refCode;
+  const c = Math.random().toString(36).slice(2, 7).toUpperCase();
+  await updateMatch(m, { refCode: c, refUids: m.refUids || [] });
+  return c;
+}
+// Cabut diri sebagai wasit (hanya menghapus uid sendiri dari refUids)
+export async function withdrawReferee(m) {
+  const me = meUid();
+  if (!(m.refUids || []).includes(me)) return { ok: false, error: "Anda bukan wasit pertandingan ini." };
+  try {
+    await updateMatch(m, { refUids: m.refUids.filter((u) => u !== me) });
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: "Gagal mencabut: " + (e.code || e.message) };
+  }
+}
+export const isRefOf = (m) => {
+  const me = meUid();
+  return !!(me && (m.refUids || []).includes(me));
+};
