@@ -7,6 +7,7 @@
 import * as store from "./store.js";
 import { toast } from "./ui.js";
 import { courtName } from "./ui-helpers.js";
+import qrcode from "./vendor/qrcode.js";
 
 let root = null, mid = "", L = null, onKey = null;
 
@@ -263,4 +264,43 @@ export function closeShow() {
   show.remove(); show = null; showI = 0;
   if (!document.getElementById("refOverlay")) document.body.classList.remove("ref-open");
   if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+}
+
+// ============================================================
+// QR SAMBUNG WASIT — wasit scan dengan kamera HP => perangkatnya
+// langsung terbuka konsol partai ini (rute #wasit/<id>/<kode>).
+// ============================================================
+export function refLink(m) {
+  return `${location.origin}/#wasit/${m.id}/${m.refCode}`;
+}
+let qrOv = null;
+export function showRefQR(m) {
+  if (qrOv) { qrOv.remove(); qrOv = null; }
+  if (!m) return;
+  if (!m.refCode) { toast("Buat kode wasit dulu (tombol 🎯).", "error"); return; }
+  const qr = qrcode(0, "M");
+  qr.addData(refLink(m));
+  qr.make();
+  const escT = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  qrOv = document.createElement("div");
+  qrOv.className = "modal-wrap";
+  qrOv.innerHTML = `
+    <div class="modal qr-modal">
+      <h3>QR Sambung Wasit</h3>
+      <p>${escT(m.teamA || "?")} vs ${escT(m.teamB || "?")} — wasit memindai kode ini dengan
+      kamera HP, lalu cukup masuk akunnya; konsol partai ini langsung terbuka di perangkatnya.</p>
+      <div class="qr-img">${qr.createSvgTag({ cellSize: 5, margin: 2 })}</div>
+      <div class="qr-link"><code>${escT(refLink(m))}</code>
+        <button class="btn ghost sm" data-qrcopy>Salin tautan</button></div>
+      <p class="muted">Kode manual: <b>${escT(m.refCode)}</b> — dapat dipakai lewat tombol 🎮 di kartu pertandingan.</p>
+      <button class="btn primary block" data-qrclose>Selesai</button>
+    </div>`;
+  document.body.append(qrOv);
+  qrOv.addEventListener("click", async (e) => {
+    if (e.target === qrOv || e.target.closest("[data-qrclose]")) { qrOv.remove(); qrOv = null; return; }
+    if (e.target.closest("[data-qrcopy]")) {
+      try { await navigator.clipboard.writeText(refLink(m)); toast("Tautan wasit disalin.", "ok"); }
+      catch { toast(refLink(m), "ok", 6000); }
+    }
+  });
 }

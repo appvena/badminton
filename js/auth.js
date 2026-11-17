@@ -1,6 +1,6 @@
 // auth.js — modal Masuk/Daftar & zona login pojok kanan atas
 import * as fb from "./firebase.js";
-import { state, setUser, isStaff } from "./store.js";
+import { state, setUser, isStaff, refreshRole } from "./store.js";
 import { $, toast } from "./ui.js";
 
 const ERR = {
@@ -95,6 +95,10 @@ export function initAuthUI() {
       } else {
         await fb.signInEmail(email, pass);
         toast("Berhasil masuk.", "ok");
+        setTimeout(async () => {
+          await refreshRole();
+          if (isStaff()) location.hash = "#admin";
+        }, 1200);
       }
       closeAuth();
     } catch (err) {

@@ -14,6 +14,7 @@ const LS_USER = "srisp_user_v1";
 const LS_LOGO = "srisp_logo";
 
 export const state = {
+  users: [],
   mode: "boot",           // boot | demo | firebase
   courts: [], bookings: [], tournaments: [], matches: [], settings: [],
   teams: [], chat: [], _chatUnsub: null, _chatTeam: "",
@@ -179,8 +180,10 @@ export const isStaff = () => ["admin", "superadmin"].includes(state.user.role);
 
 // Peran admin otoritatif dari koleksi users (Firestore). PIN hanya membuka
 // sesi pengelola di perangkat ini — tidak bisa menulis peran sendiri ke DB.
+// Mode firebase: peran akun sudah cukup — tanpa kode/PIN lagi.
+// Mode demo lokal: pintu PIN tetap (tidak ada server).
 export const isAdmin = () =>
-  state.user.pinOk === true && (isStaff() || state.mode === "demo");
+  state.mode === "demo" ? state.user.pinOk === true : isStaff();
 
 export function verifyAdminPin(pin) {
   if (pin !== APP.adminPin) return false;
@@ -686,4 +689,29 @@ export async function refreshRole() {
     const p = await fb.fsGet("users", state.user.uid);
     if (p) setUser({ role: p.role || "pemain", name: p.name || state.user.name, phone: p.phone || state.user.phone });
   } catch (e) { console.warn("refreshRole:", e.code || e.message); }
+}
+
+// ---- Manajemen akun (superadmin) ----
+export async function fetchUsers() {
+  if (state.mode !== "firebase") return state.users;
+  try {
+    state.users = await fb.fsQuery("users", [], 200);
+    emit();
+    return state.users;
+  } catch (e) { console.warn("fetchUsers:", e.code || e.message); return []; }
+}
+export async function setUserRole(uid, role) {
+  await fb.fsSet("users", uid, { role });
+  if (state.user.uid === uid) setUser({ role });
+}
+// Cabut seluruh wasit suatu pertandingan (host/superadmin)
+export async function revokeReferees(m) {
+  await updateMatch(m, { refUids: [] });
+}
+
+export async function signOut() {
+  if (state.mode === "firebase") { try { await fb.signOutUser(); } catch {} }
+  state.user.pinOk = false;
+  localStorage.setItem(LS_USER, JSON.stringify(state.user));
+  emit();
 }

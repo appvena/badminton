@@ -112,3 +112,11 @@ export async function fsGet(coll, id) {
   const s = await getDoc(doc(_db, coll, id));
   return s.exists() ? { id: s.id, ...s.data() } : null;
 }
+
+// Verifikasi ulang kata sandi (untuk tindakan sensitif, mis. cabut wasit)
+export async function reauthPassword(pass) {
+  const { EmailAuthProvider, reauthenticateWithCredential } = _authMod;
+  const u = _auth?.currentUser;
+  if (!u || u.isAnonymous) throw new Error("Perlu akun email untuk tindakan ini.");
+  await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, pass));
+}

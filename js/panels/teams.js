@@ -4,7 +4,7 @@
 import * as store from "../store.js";
 import { $, esc, toast, dateKey, prettyDate, hourLabel, skeleton } from "../ui.js";
 import { courtName } from "../ui-helpers.js";
-import { openReferee } from "../referee.js";
+import { openReferee, showRefQR } from "../referee.js";
 import { openAuth } from "../auth.js";
 
 let selTeam = "";
@@ -27,12 +27,28 @@ function teamCards() {
       <span>${store.state.teams.filter((t) => !(t.memberUids || []).includes(store.state.user.uid)).length} tim terdaftar</span></button>`;
 }
 
+function dayLabel(ts) {
+  const d = new Date(ts), t = new Date();
+  const same = (a, b) => a.toDateString() === b.toDateString();
+  if (same(d, t)) return "Hari ini";
+  if (same(d, new Date(t.getTime() - 864e5))) return "Kemarin";
+  return prettyDate(d.toISOString().slice(0, 10));
+}
 function msgsHTML() {
-  return store.state.chat.length ? store.state.chat.map((m) => `
-    <div class="msg ${m.uid === store.state.user.uid ? "me" : ""}">
-      <span class="msg-who">${esc(m.name)} · ${new Date(m.at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</span>
-      <p>${esc(m.text)}</p>
-    </div>`).join("") : `<p class="muted">Belum ada pesan. Sapa anggota timmu!</p>`;
+  if (!store.state.chat.length) return `<p class="muted">Belum ada pesan. Sapa anggota timmu — pesan hanya terlihat oleh anggota.</p>`;
+  let lastDay = "";
+  return store.state.chat.map((m) => {
+    const day = dayLabel(m.at);
+    const sep = day !== lastDay ? (lastDay = day, `<div class="msg-day">${day}</div>`) : "";
+    const me = m.uid === store.state.user.uid;
+    return sep + `<div class="msg ${me ? "me" : ""}">
+      ${me ? "" : `<span class="msg-ava" aria-hidden="true">${esc((m.name || "?").trim().charAt(0).toUpperCase() || "?")}</span>`}
+      <div class="msg-body">
+        <span class="msg-who">${esc(m.name)} · ${new Date(m.at).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</span>
+        <p>${esc(m.text)}</p>
+      </div>
+    </div>`;
+  }).join("");
 }
 
 function chatBox() {
@@ -40,6 +56,9 @@ function chatBox() {
   if (!t) return "";
   return `
     <h2 class="sec">Chat Tim — ${esc(t.name)}</h2>
+    <div class="m-row">${(t.members || []).slice(0, 14).map((x) =>
+      `<span class="mchip" title="${esc(x.name || "anggota")}">${esc((x.name || "?").trim().charAt(0).toUpperCase() || "?")}</span>`).join("")}
+      <span class="muted">${(t.members || []).length} anggota</span></div>
     <div class="chat-box">
       <div class="msgs" id="msgs">${msgsHTML()}</div>
       <div class="chat-send">
@@ -92,7 +111,10 @@ function consoleFor(m) {
   return `
     <div class="cs-head"><span>${esc(m.teamA)} vs ${esc(m.teamB)} · ${esc(courtName(m.courtId))} ${prettyDate(m.date)} ${esc(m.time || "")}</span>
       <span class="tag">${m.status === "live" ? "LIVE" : m.status === "done" ? "SELESAI" : "JADWAL"}</span></div>
-    ${m.refCode ? `<div class="ref-code">Kode wasit: <em class="code-badge">${esc(m.refCode)}</em> <button class="btn ghost sm" data-copyref="${esc(m.refCode)}">Salin</button> <span class="muted">— bagikan ke wasit; ia masuk lewat tombol 🏸 di halaman Turnamen.</span></div>` : ""}
+    ${m.refCode ? `<div class="ref-code">Kode wasit: <em class="code-badge">${esc(m.refCode)}</em>
+      <button class="btn ghost sm" data-copyref="${esc(m.refCode)}">Salin</button>
+      <button class="btn ghost sm" data-qr="${m.id}">▦ QR Wasit</button>
+      <span class="muted">— wasit scan QR dengan kamera HP, konsol partai ini terbuka di perangkatnya.</span></div>` : ""}
     <div class="cs-ref"><button class="btn ghost sm" data-href="${m.id}">⛶ Mode Wasit — layar skor penuh</button></div>
     <div class="cs-grid">
       <div class="cs-team"><input class="cs-name" data-hn="A" value="${esc(m.teamA)}" maxlength="22">
@@ -155,6 +177,7 @@ export function render(root) {
       if (!b) return;
       if (b.dataset.hsel) { hostSel = b.dataset.hsel; $("#hBox", root).innerHTML = consoleFor(hm()); return; }
       if (b.dataset.href) { openReferee(store.state.matches.find((x) => x.id === b.dataset.href)); return; }
+      if (b.dataset.qr) { showRefQR(store.state.matches.find((x) => x.id === b.dataset.qr)); return; }
       if (b.dataset.copyref) {
         try { await navigator.clipboard.writeText(b.dataset.copyref); toast("Kode wasit disalin.", "ok"); }
         catch { toast("Kode wasit: " + b.dataset.copyref, "ok", 5000); }

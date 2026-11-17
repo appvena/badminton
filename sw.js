@@ -1,11 +1,11 @@
 // sw.js — app-shell ringan.
 // Strategi: HTML/JS/CSS = network-first (selalu versi terbaru; cache hanya
 // jadi fallback offline). Gambar/ikon/font = cache-first (hemat & cepat).
-const V = "srisp-v13";
+const V = "srisp-v14";
 const CORE = [
   "/", "/index.html", "/css/style.css",
   "/js/app.js", "/js/config.js", "/js/ui.js", "/js/ui-helpers.js", "/js/auth.js",
-  "/js/firebase.js", "/js/store.js", "/js/referee.js", "/js/router-shim.js",
+  "/js/firebase.js", "/js/store.js", "/js/referee.js", "/js/vendor/qrcode.js", "/js/router-shim.js",
   "/js/panels/home.js", "/js/panels/booking.js", "/js/panels/courts.js",
   "/js/panels/tournament.js", "/js/panels/teams.js", "/js/panels/history.js", "/js/panels/admin.js",
   "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png",

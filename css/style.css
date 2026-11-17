@@ -574,3 +574,99 @@ em { font-style: normal; }
 .rep-modal { max-width: 720px; width: min(92vw, 720px); padding: 0; overflow: hidden; display: grid; grid-template-rows: auto 1fr; }
 .rep-tools { display: flex; gap: .5rem; justify-content: flex-end; padding: .6rem .7rem; border-bottom: 1px solid var(--rule); background: #fff; }
 .rep-frame { width: 100%; height: 62vh; border: 0; background: #f2f4f8; }
+
+/* ================================================================
+   v1.9 — TEMA MERAH PUTIH + FONT BARU + NAV ANIMASI + GATING TAMU
+   ================================================================ */
+:root {
+  --navy: #A50E1C;  --navy-2: #C1121F;
+  --bg: #FFFFFF;    --section: #FFF5F3;
+  --ink: #2B1A1D;   --ink-2: #7D6065;
+  --rule: #F1DCD9;  --rule-strong: #E3BDB8;
+  --accent: #E4002B; --accent-soft: #FDECEF;
+  --cond: "Plus Jakarta Sans", system-ui, sans-serif;
+}
+body { font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  background: linear-gradient(180deg, #fff 0%, #fff7f5 42%, #fff 100%) fixed; }
+h1, h2, h3, h4 { letter-spacing: -.012em; }
+
+/* wordmark: BWF miring (bisa dimatikan di Pengaturan) */
+.brand-big { font-style: italic; font-weight: 800; font-size: 1.5rem; }
+body:not(.brand-italic) .brand-big { font-style: normal; }
+.brand-small { font-weight: 700; letter-spacing: .14em; }
+
+/* bar utilitas & hero & footer: gradasi merah */
+.utility { background: linear-gradient(90deg, #7A0A14, #E4002B 55%, #ff7b5e); }
+.tour-hero { background: linear-gradient(135deg, #7A0A14 0%, #B31020 46%, #E4002B 100%); }
+.tour-hero h1, .tour-hero p { color: #fff; }
+.tour-hero h1 { color: #fff; }
+.sitefoot { background: linear-gradient(180deg, #8F0C18, #5D070F); }
+.btn.primary { background: linear-gradient(135deg, #E4002B, #ff6a3d); border-color: transparent;
+  box-shadow: 0 8px 18px -10px rgba(228, 0, 43, .55); transition: transform .15s ease, box-shadow .15s ease; }
+.btn.primary:active { transform: translateY(1px) scale(.99); }
+
+/* animasi header nav: garis gradasi melebar + teks gradasi saat aktif */
+.mainnav a, .mm-nav a { position: relative; transition: color .25s ease; }
+.mainnav a::after { content: ""; position: absolute; left: 50%; right: 50%; bottom: .2rem; height: 2.5px;
+  border-radius: 2px; background: linear-gradient(90deg, var(--accent), #ff8a5c);
+  transition: left .28s ease, right .28s ease; }
+.mainnav a:hover::after, .mainnav a.on::after { left: .45rem; right: .45rem; }
+.mainnav a.on { background: linear-gradient(90deg, var(--navy), var(--accent));
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* gating tamu — Riwayat/Tim & Kelola tersembunyi sebelum login */
+body:not(.is-reg) .g-user { display: none !important; }
+body:not(.is-staff) .g-staff { display: none !important; }
+
+/* tab konsol pengelola */
+.ad-tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin: .4rem 0 1.1rem; }
+.ad-tab { font: inherit; font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  padding: .45rem .85rem; border: 1px solid var(--rule-strong); border-radius: 999px;
+  background: #fff; color: var(--navy); cursor: pointer; transition: all .2s ease; }
+.ad-tab:hover { border-color: var(--accent); }
+.ad-tab.on { background: linear-gradient(135deg, var(--navy), var(--accent)); color: #fff; border-color: transparent; }
+.wide-form h3 { margin-top: 1.2rem; }
+.chk { display: flex; gap: .5rem; align-items: center; font-weight: 600; color: var(--ink); }
+
+/* tabel akun & peran */
+.u-table { border: 1px solid var(--rule); border-radius: var(--radius); overflow: hidden; background: #fff; }
+.u-head, .u-row { display: grid; grid-template-columns: 1.5fr .8fr 1fr; gap: .6rem; padding: .55rem .8rem; align-items: center; }
+.u-head { background: var(--section); font-size: .68rem; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-2); }
+.u-row { border-top: 1px solid var(--rule); font-size: .85rem; }
+.u-row b { display: flex; flex-direction: column; }
+.u-row b em { font-style: normal; color: var(--ink-2); font-size: .74rem; }
+.u-row select { font: inherit; padding: .3rem .45rem; border-radius: 6px; border: 1px solid var(--rule-strong); background: #fff; }
+
+/* chat gelembung */
+.m-row { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; margin: 0 0 .55rem; }
+.mchip { width: 26px; height: 26px; border-radius: 50%; display: grid; place-content: center;
+  background: linear-gradient(135deg, var(--navy), var(--accent)); color: #fff; font-size: .7rem; font-weight: 800; }
+.msgs { background: #fdf3f1; border-radius: 10px; }
+.msg { display: flex; gap: .5rem; margin: .5rem .4rem; align-items: flex-end; }
+.msg.me { justify-content: flex-end; }
+.msg-ava { flex: none; width: 26px; height: 26px; border-radius: 50%; background: #f3d9d4; color: var(--navy);
+  display: grid; place-content: center; font-size: .7rem; font-weight: 800; }
+.msg-body { max-width: 76%; background: #fff; border: 1px solid var(--rule);
+  border-radius: 14px 14px 14px 4px; padding: .5rem .8rem; }
+.msg-body p { margin: .1rem 0 0; background: none; border: 0; padding: 0; }
+.msg.me .msg-body { background: linear-gradient(135deg, #E4002B, #ff6a3d); border-color: transparent; color: #fff;
+  border-radius: 14px 14px 4px 14px; }
+.msg.me .msg-who { color: #ffd9d0; }
+.msg-who { display: block; font-size: .66rem; opacity: .75; }
+.msg-day { text-align: center; font-size: .66rem; text-transform: uppercase; letter-spacing: .12em;
+  color: var(--ink-2); margin: .9rem 0 .3rem; }
+
+/* modal QR wasit */
+.qr-modal { max-width: 440px; text-align: center; }
+.qr-modal h3 { color: var(--navy); margin-top: 0; }
+.qr-img { margin: .8rem auto; background: #fff; padding: .6rem; border: 1px solid var(--rule);
+  border-radius: 12px; display: inline-block; line-height: 0; }
+.qr-img svg { width: 216px; height: 216px; }
+.qr-link { display: flex; gap: .45rem; align-items: center; justify-content: center;
+  font-size: .68rem; color: var(--ink-2); flex-wrap: wrap; margin-bottom: .7rem; }
+.qr-link code { word-break: break-all; }
+
+/* splash & chip tanggal selaras merah */
+.splash-word { font-weight: 800; }
+.splash .shuttle { color: var(--navy); }
+.dchip.on { background: linear-gradient(135deg, var(--navy), var(--accent)); border-color: transparent; }

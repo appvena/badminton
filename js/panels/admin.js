@@ -1,38 +1,56 @@
-// Panel: Kelola — konsol skor langsung, pemesanan hari ini, data lapangan
+// Panel: Kelola — khusus pengelola. Masuk cukup dengan akun (email &
+// sandi) yang punya peran admin/superadmin; tanpa kode-kode lagi.
 import * as store from "../store.js";
 import { APP } from "../config.js";
 import { $, toast, prettyDate, dateKey, hourLabel, rupiah, esc, confirmDialog } from "../ui.js";
 import { courtName } from "../ui-helpers.js";
-import { openReferee } from "../referee.js";
+import { openReferee, showRefQR } from "../referee.js";
+import { openAuth } from "../auth.js";
+import { reauthPassword } from "../firebase.js";
 
-function pinGate(root) {
+let adminSel = "";
+let adTab = "skor";
+const TABS = [
+  ["skor", "🏸 Skor & Wasit"],
+  ["lapangan", "🏟 Lapangan"],
+  ["pesanan", "📒 Pesanan"],
+  ["setelan", "⚙️ Pengaturan"],
+  ["akun", "👥 Akun & Peran"],
+  ["logo", "🖼 Logo"],
+];
+
+// ---------- Gerbang ----------
+function staffGate(root) {
   root.innerHTML = `
-    <h2 class="sec top">Mode Pengelola</h2>
+    <div class="hero-sheet pin-card">
+      <h2>Ruang Pengelola</h2>
+      <p>Akses konsol skor, lapangan, pesanan, dan pengaturan khusus untuk
+         akun dengan peran <b>admin</b> atau <b>superadmin</b>. Cukup masuk
+         dengan email &amp; kata sandi Anda — menu ini otomatis terbuka
+         penuh setelah peran dikenali.</p>
+      <button class="btn primary" id="gateLogin">Masuk dengan Email</button>
+      <p class="muted">Belum punya akun? Daftar lewat tombol Masuk — lalu minta
+         peran diberikan oleh superadmin (menu Akun &amp; Peran).</p>
+    </div>`;
+  $("#gateLogin").onclick = () => openAuth("in");
+}
+
+function pinGate(root) { // hanya mode demo lokal
+  root.innerHTML = `
+    <h2 class="sec top">Mode Pengelola (lokal)</h2>
     <form id="pinform" class="pin-card">
-      <svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-      <p>Masukkan kode pengelola untuk mengakses konsol skor, data lapangan dan pemesanan.</p>
-      <input id="pin" type="password" inputmode="text" placeholder="Kode pengelola" autocomplete="off">
+      <p>Masukkan kode pengelola demo untuk membuka konsol di perangkat ini.</p>
+      <input id="pin" type="password" placeholder="Kode" autocomplete="off">
       <button class="btn primary block">Masuk</button>
     </form>`;
-  $("#pinform").addEventListener("submit", async (e) => {
+  $("#pinform").addEventListener("submit", (e) => {
     e.preventDefault();
-    const pin = $("#pin").value;
-    if (!store.verifyAdminPin(pin)) { toast("Kode salah.", "error"); return; }
-    if (store.state.mode === "firebase") {
-      await store.refreshRole();               // baca ulang role terbaru dari server
-      if (!store.isStaff()) {
-        toast("Peran akun ini masih '" + (store.state.user.role || "pemain") +
-          "'. Ubah field role menjadi 'superadmin' (atau 'admin') pada dokumen users di Firebase Console, lalu tekan Masuk lagi.", "error", 6000);
-        store.leaveAdmin();
-        return;
-      }
-    }
-    toast(store.isSuperAdmin() ? "Selamat bertugas, Superadmin." : "Selamat bertugas, Pengelola.", "ok");
-    render(root);
+    if (store.verifyAdminPin($("#pin").value)) { toast("Selamat bertugas.", "ok"); render(root); }
+    else toast("Kode salah.", "error");
   });
 }
 
-// ---------- Konsol skor ----------
+// ---------- Tab: Skor & Wasit ----------
 function scoreConsole(sel) {
   const ms = store.state.matches;
   if (!ms.length) return `<p class="muted">Belum ada pertandingan.</p>`;
@@ -46,10 +64,12 @@ function scoreConsole(sel) {
       <div class="cs-head">${store.matchLabel(m)} · ${esc(m.time || "—")} · ${esc(courtName(m.courtId))}
         <span class="tag st-${m.status}">${m.status === "live" ? "LIVE" : m.status === "done" ? "SELESAI" : "JADWAL"}</span></div>
       <div class="cs-ref">
-        <button class="btn ghost sm" data-ref="${m.id}">⛶ Mode Wasit — layar skor penuh</button>
-        <button class="btn ghost sm" data-refcode="${m.id}">${m.refCode ? "🎮 Kode " + esc(m.refCode) + " — salin" : "🎮 Buat Kode Wasit"}</button>
-        ${(m.refUids || []).length ? `<span class="muted">wasit aktif: ${(m.refUids || []).length}</span>` : ""}
+        <button class="btn ghost sm" data-ref="${m.id}">⛶ Mode Wasit — layar penuh</button>
+        <button class="btn ghost sm" data-refcode="${m.id}">${m.refCode ? "🎯 Kode " + esc(m.refCode) : "🎯 Buat Kode Wasit"}</button>
+        ${m.refCode ? `<button class="btn ghost sm" data-qr="${m.id}">▦ QR Wasit</button>` : ""}
+        ${(m.refUids || []).length ? `<button class="btn danger sm" data-revoke="${m.id}">Cabut Wasit (password)</button><span class="muted">wasit aktif: ${(m.refUids || []).length}</span>` : ""}
       </div>
+      <p class="muted hint-sim">Bagikan QR/kode ke wasit — ia scan dengan kamera HP, perangkatnya langsung tersambung memimpin partai ini (tombol 🎮 publik ikut muncul di kartu pertandingan).</p>
       <div class="cs-grid">
         ${["A", "B"].map((side) => `<div class="cs-team">
             <input class="cs-name" data-team="${side}" value="${esc(m[`team${side}`] || "")}" placeholder="Tim ${side}">
@@ -68,7 +88,7 @@ function scoreConsole(sel) {
     </div>`;
 }
 
-// ---------- Booking hari ini ----------
+// ---------- Tab: Pesanan ----------
 function todayBookings() {
   const today = dateKey();
   const bs = store.state.bookings
@@ -82,7 +102,7 @@ function todayBookings() {
     </div>`).join("");
 }
 
-// ---------- Data lapangan ----------
+// ---------- Tab: Lapangan ----------
 function courtsForm() {
   return `
     ${store.state.courts.map((c) => `<div class="tb-item">
@@ -106,150 +126,226 @@ function courtsForm() {
     </form>`;
 }
 
-export function render(root) {
-  if (!store.state.ready) { root.innerHTML = `<div class="skeleton-group"><div class="sk-line"></div><div class="sk-line" style="width:70%"></div></div>`; return; }
+// ---------- Tab: Pengaturan ----------
+function settingsForm() {
   const s = store.settingsData();
-  if (!store.isAdmin()) return pinGate(root);
-
-  root.innerHTML = `
-    <div class="admin-head">
-      <h2 class="sec top">Konsol Pengelola</h2>
-      <button class="btn ghost sm" id="logout">Keluar</button>
-    </div>
-    <h2 class="sec">Live Score</h2>
-    <div id="consoleBox">${scoreConsole(adminSel)}</div>
-    <h2 class="sec">Pemesanan Mendatang</h2>
-    <div class="tb-list" id="bookBox">${todayBookings()}</div>
-    ${(store.state.mode === "demo" || store.isSuperAdmin()) ? `
-    <h2 class="sec">Pengaturan Aplikasi</h2>
-    <form id="setform" class="form">
+  if (store.state.mode === "firebase" && !store.isSuperAdmin())
+    return `<p class="muted">Pengaturan aplikasi (nama, venue, pengumuman, gaya brand) hanya dapat diubah <b>superadmin</b>. Konsol skor &amp; pesanan tetap dapat Anda kelola.</p>`;
+  return `
+    <form id="setform" class="form wide-form">
+      <h3>Identitas</h3>
       <div class="frow"><label>Nama Aplikasi<span><input name="appName" value="${esc(s.appName)}" maxlength="40"></span></label>
-        <label>Nama Venue<span><input name="venueName" value="${esc(s.venueName)}" maxlength="40"></span></label></div>
-      <div class="frow"><label>Jam Operasional<span><input name="openHours" value="${esc(s.openHours)}" maxlength="40"></span></label><span></span></div>
+        <label>Nama Singkat / Inisial<small>(tampil miring di header)</small><span><input name="brandShort" value="${esc(s.brandShort || "")}" maxlength="10" placeholder="kosong = otomatis dari nama"></span></label></div>
+      <label>Tagline<span><input name="tagline" value="${esc(s.tagline)}" maxlength="60"></span></label>
+      <div class="frow"><label>Nama Venue<span><input name="venueName" value="${esc(s.venueName)}" maxlength="40"></span></label>
+        <label>Jam Operasional<span><input name="openHours" value="${esc(s.openHours)}" maxlength="40"></span></label></div>
       <label>Alamat<span><input name="address" value="${esc(s.address)}" maxlength="80"></span></label>
       <div class="frow"><label>Kontak WA/Telepon<span><input name="contactWA" value="${esc(s.contactWA)}" maxlength="24"></span></label>
         <label>Email<span><input name="contactEmail" value="${esc(s.contactEmail)}" maxlength="40"></span></label></div>
+      <h3>Tampilan &amp; Pengumuman</h3>
+      <label class="chk"><input type="checkbox" name="brandItalic" ${s.brandItalic !== false ? "checked" : ""}> Judul brand dimiringkan (italic)</label>
+      <label>Pengumuman bar atas<small>(kosongkan untuk menyembunyikan; contoh: «Promo sore: diskon 20% sebelum jam 17.00»)</small>
+        <input name="announcement" value="${esc(s.announcement)}" maxlength="90"></label>
       <button class="btn primary" type="submit">Simpan Pengaturan</button>
-      <p class="muted hint-sim">Berlaku realtime di footer, bar info, dan halaman Lapangan untuk semua pengunjung. Nama lapangan diubah lewat bagian Data Lapangan di bawah.</p>
-    </form>` : ""}
-    <h2 class="sec">Data Lapangan</h2>
-    <div class="tb-list" id="courtsBox">${courtsForm()}</div>
-    ${(store.state.mode === "demo" || store.isSuperAdmin()) ? `
-    <h2 class="sec">Logo Aplikasi</h2>
+      <p class="muted hint-sim">Berlaku realtime untuk semua pengunjung di header, bar info, footer, dan splash.</p>
+    </form>`;
+}
+
+// ---------- Tab: Akun & Peran ----------
+function usersTable() {
+  if (!store.isSuperAdmin())
+    return `<p class="muted">Pengelolaan peran akun khusus superadmin.</p>`;
+  const us = store.state.users;
+  if (!us.length) return `<p class="muted">Memuat daftar akun…</p>`;
+  return `
+    <p class="muted">Tetapkan peran: <b>pemain</b> (pengguna biasa), <b>admin</b> (konsol skor/pesanan/lapangan), <b>superadmin</b> (semua + pengaturan, logo, peran).</p>
+    <div class="u-table">
+      <div class="u-head"><span>Akun</span><span>Terdaftar</span><span>Peran</span></div>
+      ${us.map((u) => `<div class="u-row">
+        <b>${esc(u.name || "(tanpa nama)")}<em>${esc(u.email || "tamu/anon")}</em></b>
+        <span>${u.createdAt ? prettyDate(dateKey(new Date(u.createdAt))) : "—"}</span>
+        <select data-urole="${esc(u.id)}">
+          ${["pemain", "admin", "superadmin"].map((r) =>
+            `<option value="${r}" ${(u.role || "pemain") === r ? "selected" : ""}>${r}</option>`).join("")}
+        </select>
+      </div>`).join("")}
+    </div>`;
+}
+
+// ---------- Tab: Logo ----------
+function logoBox() {
+  if (store.state.mode === "firebase" && !store.isSuperAdmin())
+    return `<p class="muted">Logo hanya dapat diganti superadmin.</p>`;
+  return `
     <div class="logo-box">
-      <div class="lb-prev">${store.logoData() ? `<img src="${store.logoData()}" alt="Logo">` : `<span class="muted">Belum ada logo — ikon baku SRISP dipakai.</span>`}</div>
+      <div class="lb-prev">${store.logoData() ? `<img src="${store.logoData()}" alt="Logo">` : `<span class="muted">Belum ada logo diunggah — wordmark teks dipakai.</span>`}</div>
       <input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml">
       <div class="lb-actions">
         <button id="logoSave" class="btn primary sm">Unggah &amp; Simpan</button>
         ${store.logoData() ? `<button id="logoClear" class="btn danger sm">Hapus Logo</button>` : ""}
       </div>
-      <p class="muted hint-sim">PNG/JPG/WebP — otomatis dikecilkan ke maks 512px lalu disimpan ke Firestore (<em>settings/app</em>). Hanya superadmin yang dapat mengubah (ditegakkan oleh Rules).</p>
-    </div>` : ""}`;
+      <p class="muted hint-sim">PNG/JPG/WebP ≤ 4 MB — otomatis dikecilkan (maks 512px) lalu tersimpan realtime untuk semua perangkat. Disarankan PNG transparat ±512×512.</p>
+    </div>`;
+}
 
+function tabBody() {
+  switch (adTab) {
+    case "lapangan": return courtsForm();
+    case "pesanan": return `<div class="tb-list">${todayBookings()}</div>`;
+    case "setelan": return settingsForm();
+    case "akun": return usersTable();
+    case "logo": return logoBox();
+    default: return scoreConsole(adminSel);
+  }
+}
+
+export function render(root) {
+  if (!store.state.ready) { root.innerHTML = `<div class="skeleton-group"><div class="sk-line"></div><div class="sk-line" style="width:70%"></div></div>`; return; }
+  if (!store.isAdmin()) {
+    if (store.state.mode === "demo") pinGate(root); else staffGate(root);
+    return;
+  }
+  root.innerHTML = `
+    <div class="admin-head">
+      <h2 class="sec top">Konsol ${store.isSuperAdmin() ? "Superadmin" : "Pengelola"}</h2>
+      <button class="btn ghost sm" id="logout">Keluar Akun</button>
+    </div>
+    <div class="ad-tabs">${TABS.map(([k, l]) =>
+      `<button class="ad-tab ${adTab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>
+    <div id="adBody">${tabBody()}</div>`;
+
+  if (adTab === "akun" && store.isSuperAdmin()) store.fetchUsers();
+  bindLogo(root);
+  ensureBound(root);
+}
+
+function bindLogo(root) {
   const lf = root.querySelector("#logoFile");
   const prevBox = root.querySelector(".lb-prev");
   lf?.addEventListener("change", () => {
     if (!lf.files?.[0]) return;
-    const u = URL.createObjectURL(lf.files[0]);
-    prevBox.innerHTML = `<img src="${u}" alt="Pratinjau">`;
+    prevBox.innerHTML = `<img src="${URL.createObjectURL(lf.files[0])}" alt="Pratinjau">`;
   });
   root.querySelector("#logoSave")?.addEventListener("click", async () => {
     const file = lf?.files?.[0];
     if (!file) return toast("Pilih berkas gambar dulu.", "error");
     try {
-      const dataURL = await resizeDataURL(file, 512);
-      await store.setLogo(dataURL);
-      toast("Logo tersimpan dan langsung tampil di semua perangkat.", "ok");
+      await store.setLogo(await resizeDataURL(file, 512));
+      toast("Logo tersimpan & langsung tampil di semua perangkat.", "ok");
       render(root);
     } catch (e) {
-      if (e.code === "permission-denied")
-        toast("Hanya akun superadmin (role: superadmin) yang dapat menyimpan logo.", "error", 4200);
-      else toast(e.message || "Gagal memproses gambar.", "error");
+      toast(e.code === "permission-denied"
+        ? "Hanya superadmin yang dapat menyimpan logo." : e.message || "Gagal memproses gambar.", "error");
     }
   });
   root.querySelector("#logoClear")?.addEventListener("click", async () => {
-    await store.setLogo("");
-    toast("Logo dihapus.", "ok");
-    render(root);
+    await store.setLogo(""); toast("Logo dihapus.", "ok"); render(root);
   });
+}
 
-  $("#logout").onclick = async () => { await store.leaveAdmin(); render(root); };
-  $("#setform")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const f = new FormData(e.target);
-    try {
-      await store.saveAppSettings(Object.fromEntries(f.entries()));
-      toast("Pengaturan tersimpan & langsung tampil di seluruh aplikasi.", "ok");
-    } catch (err) {
-      toast(err.code === "permission-denied"
-        ? "Hanya superadmin yang dapat mengubah pengaturan." : "Gagal menyimpan: " + (err.code || err.message), "error");
+// ---- Delegasi peristiwa (diikat sekali) ----
+function ensureBound(root) {
+  if (root.dataset.bound) return;
+  root.dataset.bound = "1";
+
+  const mm = () => store.state.matches.find((x) => x.id === adminSel)
+    || store.state.matches.find((x) => x.status === "live") || store.state.matches[0];
+
+  root.addEventListener("click", async (e) => {
+    if (e.target.closest("#logout")) { await store.signOut(); toast("Anda keluar.", "ok"); return; }
+    const t = e.target.closest("[data-tab]");
+    if (t) { adTab = t.dataset.tab; render(root); return; }
+    const b = e.target.closest("button"); if (!b) return;
+    if (b.dataset.msel) { adminSel = b.dataset.msel; $("#adBody", root).innerHTML = tabBody(); return; }
+    if (b.dataset.ref) { openReferee(store.state.matches.find((x) => x.id === b.dataset.ref)); return; }
+    if (b.dataset.qr) { showRefQR(store.state.matches.find((x) => x.id === b.dataset.qr)); return; }
+    if (b.dataset.refcode) {
+      const m0 = mm(); if (!m0) return;
+      const code = await store.ensureRefCode(m0);
+      try { await navigator.clipboard.writeText(code); } catch {}
+      toast("Kode wasit " + code + " siap — buat QR lalu bagikan.", "ok", 4500);
+      $("#adBody", root).innerHTML = tabBody();
+      return;
+    }
+    if (b.dataset.revoke) {
+      const m0 = store.state.matches.find((x) => x.id === b.dataset.revoke); if (!m0) return;
+      const pass = prompt("Konfirmasi cabut wasit — masukkan kata sandi akun Anda:");
+      if (!pass) return;
+      try {
+        await reauthPassword(pass);
+        await store.revokeReferees(m0);
+        toast("Semua wasit pertandingan dicabut. Tombol 🎮 kembali terbuka.", "ok");
+        $("#adBody", root).innerHTML = tabBody();
+      } catch (err) {
+        toast(err.code === "auth/wrong-password" || err.code === "auth/invalid-credential"
+          ? "Kata sandi salah." : err.message || "Gagal mencabut wasit.", "error");
+      }
+      return;
+    }
+    if (b.dataset.pt) { const m0 = mm(); if (m0) await store.pointMatch(m0, b.dataset.side, Number(b.dataset.pt)); return; }
+    if (b.dataset.gim) { const m0 = mm(); if (m0) await store.winGame(m0, b.dataset.gim); return; }
+    if (b.dataset.start) {
+      const m0 = mm(); if (!m0) return;
+      await store.startMatch(m0, m0.courtId || store.state.courts[0]?.id, m0.time || "");
+      return;
+    }
+    if (b.dataset.reset) {
+      const m0 = mm(); if (!m0) return;
+      if (await confirmDialog("Reset skor?", "Gim dan poin akan dikosongkan, status kembali menjadi jadwal."))
+        await store.updateMatchPublic(m0.id, { status: "scheduled", games: [], curA: 0, curB: 0, winner: "" });
+      return;
+    }
+    if (b.dataset.maint) {
+      const c = store.state.courts.find((x) => x.id === b.dataset.maint);
+      if (c) await store.updateCourt(c.id, { statusFlag: c.statusFlag === "maint" ? "ok" : "maint" });
+      return;
+    }
+    if (b.dataset.bcancel) {
+      if (await confirmDialog("Batalkan pesanan ini?", "Status pesanan berubah menjadi dibatalkan.")) {
+        await store.cancelBooking(b.dataset.bcancel); toast("Pesanan dibatalkan.", "ok");
+      }
     }
   });
 
-  // Satu delegasi klik untuk seluruh panel: tahan terhadap update realtime
-  if (!root.dataset.bound) {
-    root.dataset.bound = "1";
-    root.addEventListener("click", async (e) => {
-      const b = e.target.closest("button");
-      if (!b) return;
-      const m = () => store.state.matches.find((x) => x.id === adminSel)
-        || store.state.matches.find((x) => x.status === "live") || store.state.matches[0];
-      if (b.dataset.msel) { adminSel = b.dataset.msel; $("#consoleBox", root).innerHTML = scoreConsole(adminSel); return; }
-      if (b.dataset.ref) { openReferee(store.state.matches.find((x) => x.id === b.dataset.ref)); return; }
-      if (b.dataset.refcode) {
-        const mm = m(); if (!mm) return;
-        const code = await store.ensureRefCode(mm);
-        try {
-          await navigator.clipboard.writeText(code);
-          toast("Kode wasit " + code + " disalin — bagikan; tombol 🎮 muncul di kartu pertandingan.", "ok", 4800);
-        } catch { toast("Kode wasit: " + code, "ok", 4800); }
-        return;
+  root.addEventListener("change", async (e) => {
+    const ur = e.target.closest("[data-urole]");
+    if (ur) {
+      try {
+        await store.setUserRole(ur.dataset.urole, ur.value);
+        toast("Peran diperbarui — akun tersebut mendapat haknya setelah muat ulang berikutnya.", "ok", 4600);
+      } catch (err) { toast("Gagal: " + (err.code || err.message), "error"); }
+      return;
+    }
+    const pl = e.target.closest("[data-pl]");
+    if (pl) {
+      const m0 = mm();
+      if (m0) {
+        const arr = pl.value.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 4);
+        await store.updateMatchPublic(m0.id, { [`players${pl.dataset.pl}`]: arr });
       }
-      if (b.dataset.pt) { const mm = m(); if (mm) await store.pointMatch(mm, b.dataset.side, Number(b.dataset.pt)); return; }
-      if (b.dataset.gim) { const mm = m(); if (mm) await store.winGame(mm, b.dataset.gim); return; }
-      if (b.dataset.start) {
-        const mm = m(); if (!mm) return;
-        await store.startMatch(mm, mm.courtId || store.state.courts[0]?.id, mm.time || "");
-        return;
+      return;
+    }
+    const t = e.target.closest("[data-team]");
+    const m0 = mm();
+    if (t && m0) store.editTeam(m0, t.dataset.team, t.value.trim());
+  });
+
+  root.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (e.target.id === "setform") {
+      const f = new FormData(e.target);
+      const data = Object.fromEntries(f.entries());
+      data.brandItalic = e.target.querySelector("[name=brandItalic]")?.checked ?? true;
+      try {
+        await store.saveAppSettings(data);
+        toast("Pengaturan tersimpan & langsung tampil di seluruh aplikasi.", "ok");
+      } catch (err) {
+        toast(err.code === "permission-denied"
+          ? "Hanya superadmin yang dapat mengubah pengaturan." : "Gagal menyimpan: " + (err.code || err.message), "error");
       }
-      if (b.dataset.reset) {
-        const mm = m(); if (!mm) return;
-        if (await confirmDialog("Reset skor?", "Gim dan poin akan dikosongkan, status kembali menjadi jadwal."))
-          await store.updateMatchPublic(mm.id, { status: "scheduled", games: [], curA: 0, curB: 0, winner: "" });
-        return;
-      }
-      if (b.dataset.maint) {
-        const c = store.state.courts.find((x) => x.id === b.dataset.maint);
-        if (c) await store.updateCourt(c.id, { statusFlag: c.statusFlag === "maint" ? "ok" : "maint" });
-        return;
-      }
-      if (b.dataset.bcancel) {
-        if (await confirmDialog("Batalkan pesanan ini?", "Status pesanan berubah menjadi dibatalkan.")) {
-          await store.cancelBooking(b.dataset.bcancel);
-          toast("Pesanan dibatalkan.", "ok");
-        }
-      }
-    });
-    root.addEventListener("change", async (e) => {
-      const pl = e.target.closest("[data-pl]");
-      if (pl) {
-        const mm = store.state.matches.find((x) => x.id === adminSel)
-          || store.state.matches.find((x) => x.status === "live") || store.state.matches[0];
-        if (mm) {
-          const side = pl.dataset.pl;
-          const arr = pl.value.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 4);
-          await store.updateMatchPublic(mm.id, { [`players${side}`]: arr });
-        }
-        return;
-      }
-      const t = e.target.closest("[data-team]");
-      const mm = store.state.matches.find((x) => x.id === adminSel)
-        || store.state.matches.find((x) => x.status === "live") || store.state.matches[0];
-      if (t && mm) store.editTeam(mm, t.dataset.team, t.value.trim());
-    });
-    root.addEventListener("submit", async (e) => {
-      if (e.target.id !== "cform") return;
-      e.preventDefault();
+      return;
+    }
+    if (e.target.id === "cform") {
       const f = new FormData(e.target);
       const openFrom = Number(f.get("openFrom")), openTo = Number(f.get("openTo"));
       if (openTo <= openFrom) return toast("Jam tutup harus setelah jam buka.", "error");
@@ -260,14 +356,26 @@ export function render(root) {
         statusFlag: "ok",
       });
       toast("Lapangan ditambahkan.", "ok");
-    });
-  }
-
+    }
+  });
 }
 
-let adminSel = "";
+// Realtime: ganti isi tab bila pengguna tidak sedang mengetik di dalamnya
+export function update(root) {
+  if (!store.state.ready || !store.isAdmin()) {
+    if (root.querySelector(".admin-head")) render(root); // peran dicabut saat sesi
+    return;
+  }
+  ensureBound(root);
+  const body = root.querySelector("#adBody");
+  if (!body) return;
+  if (body.contains(document.activeElement)) return;
+  body.innerHTML = tabBody();
+}
 
-// Kompres gambar logo di perangkat sebelum tulis ke Firestore (limit dokumen 1 MiB)
+export { ensureBound };
+
+// Kompres gambar logo sebelum tulis ke Firestore (limit dokumen 1 MiB)
 function resizeDataURL(file, max = 512) {
   return new Promise((resolve, reject) => {
     if (file.size > 4 * 1024 * 1024) return reject(new Error("Maksimal 4 MB."));
@@ -288,16 +396,4 @@ function resizeDataURL(file, max = 512) {
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Berkas bukan gambar yang valid.")); };
     img.src = url;
   });
-}
-
-// Realtime: gambar ulang konsol & daftar; form tambah lapangan hanya diganti
-// bila pengguna tidak sedang mengetik di dalamnya
-export function update(root) {
-  if (!store.state.ready || !store.isAdmin()) return;
-  const box = root.querySelector("#consoleBox");
-  if (box) box.innerHTML = scoreConsole(adminSel);
-  const bb = root.querySelector("#bookBox");
-  if (bb) bb.innerHTML = todayBookings();
-  const cb = root.querySelector("#courtsBox");
-  if (cb && !cb.contains(document.activeElement)) cb.innerHTML = courtsForm();
 }

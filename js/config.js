@@ -18,7 +18,7 @@ export const APP = {
   copyright: "© SRISP 2026",
   brand: "SRISP",
   // CATATAN RILIS: setiap update ubah versi di SINI + sw.js (V) + CHANGELOG.md.
-  version: "1.8.1",
+  version: "1.9.0",
   // Kode untuk menaikkan peran akun menjadi Pengelola (gerbang UI;
   // otorisasi sesungguhnya sebaiknya dipindah ke Custom Claims/Aturan Firestore)
   adminPin: "srisp2026",
@@ -31,6 +31,9 @@ export const APP = {
 // Kelola → Pengaturan Aplikasi (tersimpan di server, realtime).
 export const SETTINGS_DEFAULTS = {
   appName: "Badminton World Federation",
+  tagline: "Lapangan. Turnamen. Skor Langsung.",
+  announcement: "",
+  brandItalic: true,
   venueName: "BWF Hall",
   address: "Jl. Sport Center No. 1",
   contactWA: "0812-3456-7890",

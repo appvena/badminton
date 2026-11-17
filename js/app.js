@@ -8,6 +8,7 @@ import * as store from "./store.js";
 import { $, toast, prettyDate, dateKey, esc } from "./ui.js";
 import { initAuthUI, renderAuthZone } from "./auth.js";
 import { setGo } from "./router-shim.js";
+import { openReferee } from "./referee.js";
 
 import * as home from "./panels/home.js";
 import * as booking from "./panels/booking.js";
@@ -60,6 +61,8 @@ function markActive(name) {
 }
 
 function mountPanel(name, animate = true) {
+  if ((name === "teams" || name === "history") &&
+      !document.body.classList.contains("is-reg")) name = "home";
   const sec = $(`#p-${name}`);
   if (!sec) return;
   if (unsub) { unsub(); unsub = null; }
@@ -80,8 +83,32 @@ setGo(go);
 
 window.addEventListener("hashchange", () => {
   const name = location.hash.slice(1) || "home";
+  if (name.startsWith("wasit/")) { tryWasitRoute(); return; }
   if (name !== current) mountPanel(name);
 });
+
+// Rute #wasit/<idMatch>/<kode> — hasil scan QR: klaim + buka konsol otomatis
+async function tryWasitRoute() {
+  const [, id, code] = location.hash.split("/");
+  if (!id || !code) { history.replaceState(null, "", "#home"); return; }
+  let m = store.state.matches.find((x) => x.id === id);
+  for (let i = 0; !m && i < 30; i++) {
+    await new Promise((r) => setTimeout(r, 300));
+    m = store.state.matches.find((x) => x.id === id);
+  }
+  if (!m) { toast("Pertandingan tidak ditemukan — buka aplikasi dari link yang sama setelah data termuat.", "error", 5000); history.replaceState(null, "", "#tournament"); return; }
+  const r = await store.claimReferee(m, code);
+  if (!r.ok) {
+    toast(r.error, "error", 5200);
+    const { openAuth } = await import("./auth.js");
+    history.replaceState(null, "", "#tournament");
+    openAuth("in");
+    return;
+  }
+  history.replaceState(null, "", "#tournament");
+  toast("Tersambung sebagai wasit — selamat memimpin!", "ok");
+  openReferee(m);
+}
 
 function buildMobileMenu() {
   if ($(".mobile-menu") || !$("#mainnav") || !$("#hamburger")) return;
@@ -119,11 +146,16 @@ function paintChrome() {
     const live = store.liveMatches();
     const set = store.settingsData();
     tk.textContent = live.length ? `● LIVE · ${live[0].teamA} vs ${live[0].teamB}`
-      : `Buka ${set.openHours}`;
+      : set.announcement ? `📣 ${set.announcement}` : `Buka ${set.openHours}`;
   }
+  // Mode tamu: Riwayat/Tim hanya untuk akun terdaftar; Kelola hanya pengelola
+  const u = st.user, demo = st.mode === "demo";
+  document.body.classList.toggle("is-reg", demo || (!!u.email && !u.guest));
+  document.body.classList.toggle("is-staff", demo || store.isStaff());
   const set = store.settingsData();
   const nm = set.appName || APP.name;
-  const ini = nm.split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 4);
+  const ini = (set.brandShort || nm.split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 4));
+  document.body.classList.toggle("brand-italic", set.brandItalic !== false);
   document.querySelectorAll(".brand-big").forEach((el) => {
     const em = el.querySelector(".brand-small");
     if (em) { if (el.firstChild && el.firstChild.nodeType === 3) el.firstChild.nodeValue = ini; else el.prepend(ini); em.textContent = nm; }
@@ -148,7 +180,8 @@ function paintLogo() {
   const top = $("#topLogo"), fav = document.querySelector('link[rel="icon"]');
   if (!top) return;
   const lg = store.logoData();
-  $("#brandSvg").hidden = !!lg;
+  const mark = $("#brandMark");
+  if (mark) mark.hidden = !lg;
   top.hidden = !lg;
   if (lg && top.getAttribute("src") !== lg) {
     top.src = lg;
@@ -178,6 +211,7 @@ async function boot() {
     console.error(e);
     toast("Koneksi ke server bermasalah — memakai data lokal.", "error");
   }
+  if (location.hash.startsWith("#wasit/")) tryWasitRoute();
   const t0 = performance.now();
   setTimeout(hideSplash, Math.max(150, 500 - (t0 - T0)));
 }
